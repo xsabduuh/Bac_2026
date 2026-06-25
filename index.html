@@ -8,7 +8,7 @@
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 <link href="https://cdn.jsdelivr.net/npm/remixicon@4.1.0/fonts/remixicon.css" rel="stylesheet">
 <style>
-/* ... (كل CSS الموجود سابقاً بدون أي تغيير) ... */
+/* ... كل CSS السابق بدون تغيير ... */
 :root {
   --bg: #0f0f13;
   --bg2: #18181f;
@@ -644,6 +644,11 @@ body {
   display: flex;
   align-items: center;
   gap: 12px;
+  transition: opacity var(--transition);
+}
+.session-card.completed {
+  opacity: 0.6;
+  border-color: var(--green);
 }
 .session-time-badge {
   background: var(--accent-light);
@@ -657,6 +662,22 @@ body {
 .session-info { flex: 1; }
 .session-subject { font-size: 14px; font-weight: 600; }
 .session-detail { font-size: 12px; color: var(--text3); }
+.session-complete-btn {
+  background: none;
+  border: none;
+  color: var(--text3);
+  font-size: 24px;
+  cursor: pointer;
+  padding: 4px;
+  transition: color var(--transition), transform 0.15s;
+  flex-shrink: 0;
+}
+.session-complete-btn.done {
+  color: var(--green);
+}
+.session-complete-btn:active {
+  transform: scale(0.9);
+}
 .session-del {
   background: none;
   border: none;
@@ -664,6 +685,7 @@ body {
   font-size: 18px;
   cursor: pointer;
   padding: 4px;
+  flex-shrink: 0;
 }
 .session-del:active { color: var(--red); }
 .empty-state {
@@ -1202,6 +1224,7 @@ function renderSearchResults(q) {
   }).join('');
 }
 
+// ... (دوال عرض المواد العادية renderCategory, renderSubject, renderUnit, renderLesson, renderBranchItem, toggleSubjectExpand, toggleUnitExpand, restoreExpandState) كما هي بدون تغيير ...
 function renderCategory(cat, q) {
   const subjects = cat.subjects.filter(subj => {
     if (!q) return true;
@@ -1511,7 +1534,7 @@ function toggleComplete(pid) {
 }
 
 // ═══════════════════════════════════════════════════════
-//  SCHEDULE PAGE (تمت إضافة حقل المدة بالساعات)
+//  SCHEDULE PAGE (مع حقل المدة + علامة إكمال الجلسة)
 // ═══════════════════════════════════════════════════════
 let selectedDay = todayKey();
 function renderSchedule() {
@@ -1576,14 +1599,20 @@ function renderSessionsList(sessions) {
     const meta = subjMeta(s.subjectId);
     const subj = STUDY_DATA.flatMap(c=>c.subjects).find(x=>x.id===s.subjectId);
     const durationText = s.duration ? `${s.duration} ساعة` : '';
+    const completedClass = s.completed ? 'completed' : '';
+    const checkIcon = s.completed ? 'ri-checkbox-circle-fill' : 'ri-checkbox-circle-line';
+    const checkBtnClass = s.completed ? 'done' : '';
     return `
-    <div class="session-card">
+    <div class="session-card ${completedClass}" id="session-${i}">
       <div class="session-time-badge">${s.time}</div>
       <div class="session-info">
-        <div class="session-subject" style="color:${meta.color}">${subj ? subj.title : s.subjectId}</div>
+        <div class="session-subject" style="color:${meta.color}; ${s.completed ? 'text-decoration: line-through; opacity:0.7;' : ''}">${subj ? subj.title : s.subjectId}</div>
         ${durationText ? `<div class="session-detail">⏱ ${durationText}</div>` : ''}
         ${s.note ? `<div class="session-detail">${escHtml(s.note)}</div>` : ''}
       </div>
+      <button class="session-complete-btn ${checkBtnClass}" onclick="toggleSessionComplete(${i})" title="${s.completed ? 'إلغاء الإكمال' : 'تمت المراجعة'}">
+        <i class="ri-lg ${checkIcon}"></i>
+      </button>
       <button class="session-del" onclick="deleteSession(${i})"><i class="ri-delete-bin-line"></i></button>
     </div>`;
   }).join('');
@@ -1601,11 +1630,18 @@ function addSession() {
   const duration = durationEl ? parseFloat(durationEl.value) || 0 : 0;
   const schedule = LS.get(KEY_SCHEDULE, {});
   if (!schedule[selectedDay]) schedule[selectedDay] = [];
-  schedule[selectedDay].push({ subjectId: subjEl.value, time: timeEl.value, duration, note: noteEl ? noteEl.value : '' });
+  schedule[selectedDay].push({ subjectId: subjEl.value, time: timeEl.value, duration, note: noteEl ? noteEl.value : '', completed: false });
   schedule[selectedDay].sort((a,b) => a.time.localeCompare(b.time));
   LS.set(KEY_SCHEDULE, schedule);
   document.getElementById('page-content').innerHTML = renderSchedule();
   showToast('✓ تمت إضافة الجلسة');
+}
+function toggleSessionComplete(idx) {
+  const schedule = LS.get(KEY_SCHEDULE, {});
+  if (!schedule[selectedDay] || !schedule[selectedDay][idx]) return;
+  schedule[selectedDay][idx].completed = !schedule[selectedDay][idx].completed;
+  LS.set(KEY_SCHEDULE, schedule);
+  document.getElementById('page-content').innerHTML = renderSchedule();
 }
 function deleteSession(idx) {
   const schedule = LS.get(KEY_SCHEDULE, {});
