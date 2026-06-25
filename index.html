@@ -8,6 +8,7 @@
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 <link href="https://cdn.jsdelivr.net/npm/remixicon@4.1.0/fonts/remixicon.css" rel="stylesheet">
 <style>
+/* ... (كل CSS الموجود سابقاً بدون أي تغيير) ... */
 :root {
   --bg: #0f0f13;
   --bg2: #18181f;
@@ -613,6 +614,17 @@ body {
   outline: none;
   width: 100px;
 }
+.session-duration-input {
+  background: var(--bg3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 8px 10px;
+  font-family: inherit;
+  font-size: 13px;
+  color: var(--text);
+  outline: none;
+  width: 90px;
+}
 .session-add-submit {
   background: var(--accent);
   color: #fff;
@@ -776,7 +788,7 @@ body {
 'use strict';
 
 // ═══════════════════════════════════════════════════════
-//  STORE — LocalStorage wrapper
+//  STORE
 // ═══════════════════════════════════════════════════════
 const LS = {
   get: (k, def) => { try { const v = localStorage.getItem(k); return v !== null ? JSON.parse(v) : def; } catch { return def; } },
@@ -1125,7 +1137,7 @@ function saveTimerActivity() {
 }
 
 // ═══════════════════════════════════════════════════════
-//  SUBJECTS PAGE (عرض المواد + بحث يظهر الدروس فقط)
+//  SUBJECTS PAGE
 // ═══════════════════════════════════════════════════════
 let searchQuery = '';
 const expandedSubjects = new Set();
@@ -1156,19 +1168,15 @@ function updateSubjectsResults() {
   const q = searchQuery.toLowerCase().trim();
 
   if (q === '') {
-    // عرض المواد كاملة
     container.innerHTML = STUDY_DATA.map(cat => renderCategory(cat, '')).join('');
     restoreExpandState();
   } else {
-    // عرض نتائج البحث المسطحة (الدروس فقط)
     container.innerHTML = renderSearchResults(q);
   }
 }
 
 function renderSearchResults(q) {
   const branches = getAllBranches();
-  
-  // فلترة الفروع التي تطابق البحث (عنوان الفرع فقط)
   const matchingBranches = branches.filter(b => b.title.toLowerCase().includes(q));
 
   if (matchingBranches.length === 0) {
@@ -1194,7 +1202,6 @@ function renderSearchResults(q) {
   }).join('');
 }
 
-// دوال عرض المواد في الوضع الطبيعي
 function renderCategory(cat, q) {
   const subjects = cat.subjects.filter(subj => {
     if (!q) return true;
@@ -1275,7 +1282,6 @@ function renderBranchItem(branch) {
     <i class="ri-arrow-left-s-line branch-arrow"></i>
   </div>`;
 }
-
 function toggleSubjectExpand(subjectId, header) {
   const body = document.getElementById('body-subj-' + subjectId);
   const chevron = document.getElementById('chevron-subj-' + subjectId);
@@ -1290,7 +1296,6 @@ function toggleSubjectExpand(subjectId, header) {
     expandedSubjects.add(subjectId);
   }
 }
-
 function toggleUnitExpand(unitId, header) {
   const body = document.getElementById('body-unit-' + unitId);
   const chevron = document.getElementById('chevron-unit-' + unitId);
@@ -1305,7 +1310,6 @@ function toggleUnitExpand(unitId, header) {
     expandedUnits.add(unitId);
   }
 }
-
 function restoreExpandState() {
   expandedSubjects.forEach(id => {
     const body = document.getElementById('body-subj-' + id);
@@ -1425,7 +1429,6 @@ function renderReviewTab(pid) {
   </div>`;
 }
 function initBranchEvents() { /* events are inline onclick */ }
-
 function togglePartial(pid) {
   const body = document.getElementById('pb-' + pid);
   const chevron = document.getElementById('chevron-' + pid);
@@ -1508,7 +1511,7 @@ function toggleComplete(pid) {
 }
 
 // ═══════════════════════════════════════════════════════
-//  SCHEDULE PAGE
+//  SCHEDULE PAGE (تمت إضافة حقل المدة بالساعات)
 // ═══════════════════════════════════════════════════════
 let selectedDay = todayKey();
 function renderSchedule() {
@@ -1547,6 +1550,7 @@ function renderSchedule() {
           ${allSubjects.map(s => `<option value="${s.id}">${s.title}</option>`).join('')}
         </select>
         <input type="time" class="session-time-input" id="sess-time" value="09:00">
+        <input type="number" class="session-duration-input" id="sess-duration" placeholder="ساعة" min="0.5" max="12" step="0.5" value="1" style="width:80px;">
       </div>
       <div style="margin-top:8px">
         <input type="text" class="add-exercise-input" id="sess-note" placeholder="ملاحظة اختيارية..." style="width:100%">
@@ -1571,11 +1575,13 @@ function renderSessionsList(sessions) {
   return sessions.map((s, i) => {
     const meta = subjMeta(s.subjectId);
     const subj = STUDY_DATA.flatMap(c=>c.subjects).find(x=>x.id===s.subjectId);
+    const durationText = s.duration ? `${s.duration} ساعة` : '';
     return `
     <div class="session-card">
       <div class="session-time-badge">${s.time}</div>
       <div class="session-info">
         <div class="session-subject" style="color:${meta.color}">${subj ? subj.title : s.subjectId}</div>
+        ${durationText ? `<div class="session-detail">⏱ ${durationText}</div>` : ''}
         ${s.note ? `<div class="session-detail">${escHtml(s.note)}</div>` : ''}
       </div>
       <button class="session-del" onclick="deleteSession(${i})"><i class="ri-delete-bin-line"></i></button>
@@ -1589,11 +1595,13 @@ function selectDay(key) {
 function addSession() {
   const subjEl = document.getElementById('sess-subj');
   const timeEl = document.getElementById('sess-time');
+  const durationEl = document.getElementById('sess-duration');
   const noteEl = document.getElementById('sess-note');
   if (!subjEl || !timeEl) return;
+  const duration = durationEl ? parseFloat(durationEl.value) || 0 : 0;
   const schedule = LS.get(KEY_SCHEDULE, {});
   if (!schedule[selectedDay]) schedule[selectedDay] = [];
-  schedule[selectedDay].push({ subjectId: subjEl.value, time: timeEl.value, note: noteEl ? noteEl.value : '' });
+  schedule[selectedDay].push({ subjectId: subjEl.value, time: timeEl.value, duration, note: noteEl ? noteEl.value : '' });
   schedule[selectedDay].sort((a,b) => a.time.localeCompare(b.time));
   LS.set(KEY_SCHEDULE, schedule);
   document.getElementById('page-content').innerHTML = renderSchedule();
