@@ -63,8 +63,8 @@ body {
   transition: background var(--transition), color var(--transition);
 }
 #app {
-  height: 100vh;        /* fallback */
-  height: 100dvh;       /* الارتفاع الديناميكي الحقيقي */
+  height: 100vh;
+  height: 100dvh;
   display: flex;
   flex-direction: column;
   position: relative;
@@ -954,7 +954,7 @@ function renderPage(page) {
   container.scrollTop = 0;
   try {
     if (page === 'home')              container.innerHTML = renderHome();
-    else if (page === 'subjects')     container.innerHTML = renderSubjects();
+    else if (page === 'subjects')     { container.innerHTML = renderSubjects(); restoreExpandState(); }
     else if (page === 'schedule')     container.innerHTML = renderSchedule();
     else if (page === 'stats')        container.innerHTML = renderStats();
     else if (page.startsWith('branch:')) {
@@ -1074,7 +1074,7 @@ function renderHome() {
 }
 
 // ═══════════════════════════════════════════════════════
-//  TIMER (النسخة الأصلية الصحيحة من أول ملف أرسلته)
+//  TIMER (النسخة الأصلية الصحيحة)
 // ═══════════════════════════════════════════════════════
 function initTimerDisplay() {
   const saved = LS.get(KEY_TIMER, { total: 0 });
@@ -1100,7 +1100,6 @@ function toggleTimer() {
     timerInterval = setInterval(() => {
       timerSeconds++;
       updateTimerDisplay();
-      // Save every 30s
       if (timerSeconds % 30 === 0) saveTimerActivity();
     }, 1000);
   } else {
@@ -1117,31 +1116,46 @@ function resetTimer() {
 }
 function saveTimerActivity() {
   const saved = LS.get(KEY_TIMER, { total: 0 });
-  saved.total = (saved.total || 0) + 30;  // ثابت كما في النسخة الأولى
+  saved.total = (saved.total || 0) + 30;
   LS.set(KEY_TIMER, saved);
   const act = LS.get(KEY_ACTIVITY, {});
   const today = todayKey();
-  act[today] = (act[today] || 0) + 0.5; // 30 seconds = 0.5 minutes
+  act[today] = (act[today] || 0) + 0.5;
   LS.set(KEY_ACTIVITY, act);
 }
 
 // ═══════════════════════════════════════════════════════
-//  SUBJECTS PAGE
+//  SUBJECTS PAGE (محسّنة مع حفظ الحالة والبحث الثابت)
 // ═══════════════════════════════════════════════════════
 let searchQuery = '';
-function renderSubjects(query) {
-  if (query !== undefined) searchQuery = query;
-  const q = searchQuery.toLowerCase().trim();
+const expandedSubjects = new Set();
+const expandedUnits = new Set();
+
+function renderSubjects() {
   return `
   <div class="page-inner">
     <div class="search-bar">
       <i class="ri-search-line"></i>
-      <input type="search" placeholder="ابحث عن مادة أو درس..." value="${escHtml(searchQuery)}"
-        oninput="document.getElementById('page-content').innerHTML=renderSubjects(this.value)" />
+      <input type="search" id="search-input" placeholder="ابحث عن مادة أو درس..." value="${escHtml(searchQuery)}"
+        oninput="onSearchInput(this.value)" autocomplete="off" />
     </div>
-    ${STUDY_DATA.map(cat => renderCategory(cat, q)).join('')}
+    <div id="subjects-results"></div>
   </div>`;
 }
+
+function onSearchInput(value) {
+  searchQuery = value;
+  updateSubjectsResults();
+}
+
+function updateSubjectsResults() {
+  const container = document.getElementById('subjects-results');
+  if (!container) return;
+  const q = searchQuery.toLowerCase().trim();
+  container.innerHTML = STUDY_DATA.map(cat => renderCategory(cat, q)).join('');
+  restoreExpandState();
+}
+
 function renderCategory(cat, q) {
   const subjects = cat.subjects.filter(subj => {
     if (!q) return true;
@@ -1170,10 +1184,9 @@ function renderSubject(subj, q) {
   const pct = calcSubjectProgress(subj.id);
   const allP = subj.units.reduce((s,u)=>s+u.lessons.reduce((s2,l)=>s2+l.branches.reduce((s3,b)=>s3+b.partials.length,0),0),0);
   const doneP = subj.units.reduce((s,u)=>s+u.lessons.reduce((s2,l)=>s2+l.branches.reduce((s3,b)=>s3+b.partials.filter(p=>isCompleted(p.id)).length,0),0),0);
-  const expanded = q && q.length > 0;
   return `
-  <div class="subject-card">
-    <div class="subject-header" onclick="toggleExpand(this)">
+  <div class="subject-card" data-subject-id="${subj.id}">
+    <div class="subject-header" onclick="toggleSubjectExpand('${subj.id}', this)">
       <div class="subject-icon" style="background:${meta.bg};color:${meta.color}">
         <i class="${meta.icon}"></i>
       </div>
@@ -1181,25 +1194,24 @@ function renderSubject(subj, q) {
         <div class="subject-name">${escHtml(subj.title)}</div>
         <div class="subject-progress">${doneP}/${allP} جزئية · ${pct}%</div>
       </div>
-      <i class="ri-arrow-left-s-line subject-chevron ${expanded?'open':''}"></i>
+      <i class="ri-arrow-left-s-line subject-chevron" id="chevron-subj-${subj.id}"></i>
     </div>
     <div class="progress-bar-wrap">
       <div class="progress-bar-fill" style="width:${pct}%"></div>
     </div>
-    <div class="subject-body ${expanded?'open':''}">
+    <div class="subject-body" id="body-subj-${subj.id}">
       ${subj.units.map(unit => renderUnit(unit, q)).join('')}
     </div>
   </div>`;
 }
 function renderUnit(unit, q) {
-  const expanded = q && q.length > 0;
   return `
-  <div class="unit-block">
-    <div class="unit-header" onclick="toggleExpand(this)">
-      <i class="ri-arrow-left-s-line unit-chevron ${expanded?'open':''}"></i>
+  <div class="unit-block" data-unit-id="${unit.id}">
+    <div class="unit-header" onclick="toggleUnitExpand('${unit.id}', this)">
+      <i class="ri-arrow-left-s-line unit-chevron" id="chevron-unit-${unit.id}"></i>
       <span class="unit-title">${escHtml(unit.title)}</span>
     </div>
-    <div class="unit-body ${expanded?'open':''}">
+    <div class="unit-body" id="body-unit-${unit.id}">
       ${unit.lessons.map(lesson => renderLesson(lesson, q)).join('')}
     </div>
   </div>`;
@@ -1224,18 +1236,50 @@ function renderBranchItem(branch) {
     <i class="ri-arrow-left-s-line branch-arrow"></i>
   </div>`;
 }
-function toggleExpand(header) {
-  const chevron = header.querySelector('.subject-chevron,.unit-chevron');
-  let bodyEl;
-  if (header.classList.contains('subject-header')) {
-    bodyEl = header.parentElement.querySelector('.subject-body');
+
+function toggleSubjectExpand(subjectId, header) {
+  const body = document.getElementById('body-subj-' + subjectId);
+  const chevron = document.getElementById('chevron-subj-' + subjectId);
+  if (!body) return;
+  if (body.classList.contains('open')) {
+    body.classList.remove('open');
+    if (chevron) chevron.classList.remove('open');
+    expandedSubjects.delete(subjectId);
   } else {
-    bodyEl = header.parentElement.querySelector('.unit-body');
+    body.classList.add('open');
+    if (chevron) chevron.classList.add('open');
+    expandedSubjects.add(subjectId);
   }
-  if (!bodyEl) return;
-  const isOpen = bodyEl.classList.contains('open');
-  bodyEl.classList.toggle('open', !isOpen);
-  if (chevron) chevron.classList.toggle('open', !isOpen);
+}
+
+function toggleUnitExpand(unitId, header) {
+  const body = document.getElementById('body-unit-' + unitId);
+  const chevron = document.getElementById('chevron-unit-' + unitId);
+  if (!body) return;
+  if (body.classList.contains('open')) {
+    body.classList.remove('open');
+    if (chevron) chevron.classList.remove('open');
+    expandedUnits.delete(unitId);
+  } else {
+    body.classList.add('open');
+    if (chevron) chevron.classList.add('open');
+    expandedUnits.add(unitId);
+  }
+}
+
+function restoreExpandState() {
+  expandedSubjects.forEach(id => {
+    const body = document.getElementById('body-subj-' + id);
+    const chevron = document.getElementById('chevron-subj-' + id);
+    if (body) body.classList.add('open');
+    if (chevron) chevron.classList.add('open');
+  });
+  expandedUnits.forEach(id => {
+    const body = document.getElementById('body-unit-' + id);
+    const chevron = document.getElementById('chevron-unit-' + id);
+    if (body) body.classList.add('open');
+    if (chevron) chevron.classList.add('open');
+  });
 }
 
 // ═══════════════════════════════════════════════════════
