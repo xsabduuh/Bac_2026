@@ -742,7 +742,7 @@ body {
 </style>
 </head>
 <body>
-<div id="index">
+<div id="app">
   <div class="header" id="header">
     <button class="header-action back-btn" id="back-btn" style="display:none" onclick="goBack()">
       <i class="ri-arrow-right-line"></i>
@@ -968,7 +968,8 @@ function renderHome() {
   const overall = calcOverallProgress();
   const r = 35, c = 2 * Math.PI * r;
   const offset = c - (overall.pct / 100) * c;
-  const timerTotal = LS.get(KEY_TIMER, { total: 0 }).total;
+  const timerData = LS.get(KEY_TIMER, { total: 0 });
+  const timerTotal = timerData.total;
   const activity = LS.get(KEY_ACTIVITY, {});
   const todayMin = activity[todayKey()] || 0;
 
@@ -1075,6 +1076,7 @@ function initTimerDisplay() {
   if (timerRunning) updateTimerDisplay();
   else updateTimerDisplay();
 }
+
 function updateTimerDisplay() {
   const el = document.getElementById('timer-disp');
   const icon = document.getElementById('timer-icon');
@@ -1087,35 +1089,46 @@ function updateTimerDisplay() {
   if (icon) icon.className = timerRunning ? 'ri-pause-fill' : 'ri-play-fill';
   if (btn) btn.className = timerRunning ? 'timer-btn pause' : 'timer-btn start';
 }
+
 function toggleTimer() {
   timerRunning = !timerRunning;
   if (timerRunning) {
     timerInterval = setInterval(() => {
       timerSeconds++;
       updateTimerDisplay();
-      // Save every 30s
-      if (timerSeconds % 30 === 0) saveTimerActivity();
+      if (timerSeconds % 30 === 0) {
+        saveTimerActivity();
+      }
     }, 1000);
   } else {
     clearInterval(timerInterval);
     saveTimerActivity();
+    timerSeconds = 0;
   }
   updateTimerDisplay();
 }
+
 function resetTimer() {
   clearInterval(timerInterval);
+  if (timerRunning) {
+    saveTimerActivity();
+  }
   timerRunning = false;
   timerSeconds = 0;
   updateTimerDisplay();
 }
+
 function saveTimerActivity() {
   const saved = LS.get(KEY_TIMER, { total: 0 });
-  saved.total = (saved.total || 0) + 30;
+  saved.total = (saved.total || 0) + timerSeconds;
   LS.set(KEY_TIMER, saved);
+
   const act = LS.get(KEY_ACTIVITY, {});
   const today = todayKey();
-  act[today] = (act[today] || 0) + 0.5; // 30 seconds = 0.5 minutes
+  act[today] = (act[today] || 0) + Math.ceil(timerSeconds / 60);
   LS.set(KEY_ACTIVITY, act);
+
+  timerSeconds = 0;
 }
 
 // ═══════════════════════════════════════════════════════
@@ -1219,9 +1232,6 @@ function renderBranchItem(branch) {
 }
 function toggleExpand(header) {
   const chevron = header.querySelector('.subject-chevron,.unit-chevron');
-  const body = header.nextElementSibling?.nextElementSibling || header.nextElementSibling;
-  // For subject: nextSibling is progress-bar, then body
-  // For unit: nextSibling is body
   let bodyEl;
   if (header.classList.contains('subject-header')) {
     bodyEl = header.parentElement.querySelector('.subject-body');
@@ -1344,7 +1354,6 @@ function togglePartial(pid) {
   const chevron = document.getElementById('chevron-' + pid);
   if (!body) return;
   const isOpen = body.classList.contains('open');
-  // Close all
   document.querySelectorAll('.partial-body.open').forEach(el => el.classList.remove('open'));
   document.querySelectorAll('[id^="chevron-"]').forEach(el => el.style.transform = '');
   if (!isOpen) {
@@ -1400,7 +1409,6 @@ function addReview(pid) {
 function toggleComplete(pid) {
   const done = isCompleted(pid);
   setPartialProgress(pid, { completed: !done });
-  // Update UI
   const card = document.getElementById('pc-' + pid);
   const chk = document.getElementById('chk-' + pid);
   const cbtn = document.getElementById('cbtn-' + pid);
@@ -1416,7 +1424,6 @@ function toggleComplete(pid) {
       : '<i class="ri-checkbox-circle-line"></i> تحديد كمكتملة';
   }
   showToast(!done ? '✓ تم تحديدها كمكتملة' : '✓ تم إلغاء الإكمال');
-  // Record activity
   const act = LS.get(KEY_ACTIVITY, {});
   const today = todayKey();
   act[today] = (act[today] || 0) + 2;
@@ -1432,7 +1439,6 @@ function renderSchedule() {
   const dayNames = ['أحد','اثنين','ثلاثاء','أربعاء','خميس','جمعة','سبت'];
   const schedule = LS.get(KEY_SCHEDULE, {});
 
-  // Generate 7 days around today
   const days = [];
   for (let i = -3; i <= 3; i++) {
     const d = new Date(today);
@@ -1530,14 +1536,13 @@ function deleteSession(idx) {
 // ═══════════════════════════════════════════════════════
 function renderStats() {
   const overall = calcOverallProgress();
-  const timerTotal = LS.get(KEY_TIMER, { total: 0 }).total;
+  const timerData = LS.get(KEY_TIMER, { total: 0 });
+  const timerTotal = timerData.total;
   const activity = LS.get(KEY_ACTIVITY, {});
   const todayMin = activity[todayKey()] || 0;
 
-  // All subjects progress
   const allSubjects = STUDY_DATA.flatMap(cat => cat.subjects);
 
-  // Heatmap: last 91 days (13 weeks x 7 days)
   const today = new Date();
   const heatCells = [];
   for (let i = 90; i >= 0; i--) {
