@@ -954,7 +954,7 @@ function renderPage(page) {
   container.scrollTop = 0;
   try {
     if (page === 'home')              container.innerHTML = renderHome();
-    else if (page === 'subjects')     { container.innerHTML = renderSubjects(); restoreExpandState(); }
+    else if (page === 'subjects')     { container.innerHTML = renderSubjects(); updateSubjectsResults(); }
     else if (page === 'schedule')     container.innerHTML = renderSchedule();
     else if (page === 'stats')        container.innerHTML = renderStats();
     else if (page.startsWith('branch:')) {
@@ -1125,7 +1125,7 @@ function saveTimerActivity() {
 }
 
 // ═══════════════════════════════════════════════════════
-//  SUBJECTS PAGE (محسّنة مع حفظ الحالة والبحث الثابت)
+//  SUBJECTS PAGE (عرض المواد مباشرة + بحث سلس)
 // ═══════════════════════════════════════════════════════
 let searchQuery = '';
 const expandedSubjects = new Set();
@@ -1146,6 +1146,9 @@ function renderSubjects() {
 function onSearchInput(value) {
   searchQuery = value;
   updateSubjectsResults();
+  // إبقاء التركيز على حقل البحث بعد التحديث
+  const input = document.getElementById('search-input');
+  if (input) setTimeout(() => input.focus(), 0);
 }
 
 function updateSubjectsResults() {
