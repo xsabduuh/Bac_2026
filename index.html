@@ -8,7 +8,6 @@
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 <link href="https://cdn.jsdelivr.net/npm/remixicon@4.1.0/fonts/remixicon.css" rel="stylesheet">
 <style>
-/* ... كل CSS السابق بدون تغيير ... */
 :root {
   --bg: #0f0f13;
   --bg2: #18181f;
@@ -181,36 +180,7 @@ body {
 .home-hero-stats { flex: 1; }
 .home-hero-stat { display: flex; justify-content: space-between; margin-bottom: 6px; font-size: 13px; }
 .home-hero-stat strong { font-weight: 600; }
-.timer-section {
-  background: var(--bg2);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  padding: 16px;
-  margin-bottom: 16px;
-  display: flex;
-  align-items: center;
-  gap: 14px;
-}
-.timer-display {
-  font-size: 28px;
-  font-weight: 700;
-  font-variant-numeric: tabular-nums;
-  color: var(--accent);
-  flex: 1;
-  letter-spacing: 1px;
-}
-.timer-btn {
-  border: none;
-  cursor: pointer;
-  border-radius: 50%;
-  width: 48px; height: 48px;
-  font-size: 22px;
-  display: flex; align-items: center; justify-content: center;
-  transition: all var(--transition);
-}
-.timer-btn.start { background: var(--green); color: #fff; }
-.timer-btn.pause { background: var(--yellow); color: #fff; }
-.timer-btn.reset { background: var(--bg3); color: var(--text2); }
+/* ── تم إزالة قسم timer-section بالكامل من CSS لأنه لم يعد موجوداً في HTML ── */
 .section-title {
   font-size: 13px;
   font-weight: 600;
@@ -696,7 +666,7 @@ body {
 .empty-state i { font-size: 48px; margin-bottom: 10px; display: block; }
 .empty-state p { font-size: 14px; }
 /* ── STATS PAGE ── */
-.stats-hero-row { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; margin-bottom: 16px; }
+.stats-hero-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 16px; }
 .stats-mini {
   background: var(--bg2);
   border: 1px solid var(--border);
@@ -821,7 +791,7 @@ const KEY_PROGRESS  = 'sp_progress';
 const KEY_NOTES     = 'sp_notes';
 const KEY_EXERCISES = 'sp_exercises';
 const KEY_ACTIVITY  = 'sp_activity';
-const KEY_TIMER     = 'sp_timer';
+const KEY_TIMER     = 'sp_timer';       // لم نعد نستخدمه لكن نحتفظ بالمفتاح لتجنب الأخطاء إن وُجد
 const KEY_SCHEDULE  = 'sp_schedule';
 const KEY_THEME     = 'sp_theme';
 
@@ -937,9 +907,6 @@ function subjMeta(id) { return SUBJ_META[id] || { icon: 'ri-book-line', color: '
 // ═══════════════════════════════════════════════════════
 let currentPage = 'home';
 let historyStack = [];
-let timerInterval = null;
-let timerSeconds = 0;
-let timerRunning = false;
 
 function nav(page, push = true) {
   console.log('nav to', page);
@@ -999,19 +966,16 @@ function renderPage(page) {
     console.error('خطأ في عرض الصفحة:', e);
     container.innerHTML = '<div class="page-inner"><p>حدث خطأ أثناء تحميل الصفحة.</p></div>';
   }
-  if (page === 'home') initTimerDisplay();
+  // تم إزالة استدعاء initTimerDisplay() تماماً
 }
 
 // ═══════════════════════════════════════════════════════
-//  HOME PAGE
+//  HOME PAGE (بدون مؤقت)
 // ═══════════════════════════════════════════════════════
 function renderHome() {
   const overall = calcOverallProgress();
   const r = 35, c = 2 * Math.PI * r;
   const offset = c - (overall.pct / 100) * c;
-  const timerTotal = LS.get(KEY_TIMER, { total: 0 }).total;
-  const activity = LS.get(KEY_ACTIVITY, {});
-  const todayMin = activity[todayKey()] || 0;
 
   const allBranches = getAllBranches();
   const prog = getProgress();
@@ -1039,23 +1003,8 @@ function renderHome() {
         <div class="home-hero-stats">
           <div class="home-hero-stat"><span>الفقرات المنجزة</span><strong>${overall.done}/${overall.total}</strong></div>
           <div class="home-hero-stat"><span>المراجعات</span><strong>${totalReviews()}</strong></div>
-          <div class="home-hero-stat"><span>وقت اليوم</span><strong>${todayMin} د</strong></div>
-          <div class="home-hero-stat"><span>الوقت الإجمالي</span><strong>${Math.round(timerTotal/60)} د</strong></div>
         </div>
       </div>
-    </div>
-
-    <div class="timer-section">
-      <div>
-        <div style="font-size:12px;color:var(--text3);margin-bottom:2px">مؤقت الدراسة</div>
-        <div class="timer-display" id="timer-disp">00:00:00</div>
-      </div>
-      <button class="timer-btn reset" id="btn-reset" onclick="resetTimer()" title="إعادة ضبط">
-        <i class="ri-restart-line"></i>
-      </button>
-      <button class="timer-btn start" id="btn-startstop" onclick="toggleTimer()">
-        <i class="ri-play-fill" id="timer-icon"></i>
-      </button>
     </div>
 
     <div class="stats-row">
@@ -1073,11 +1022,6 @@ function renderHome() {
         <div class="stat-card-icon" style="color:var(--yellow)"><i class="ri-restart-line"></i></div>
         <div class="stat-card-val">${totalReviews()}</div>
         <div class="stat-card-lbl">مراجعة</div>
-      </div>
-      <div class="stat-card">
-        <div class="stat-card-icon" style="color:var(--blue)"><i class="ri-time-line"></i></div>
-        <div class="stat-card-val">${Math.round(timerTotal/3600)}</div>
-        <div class="stat-card-lbl">ساعة دراسة</div>
       </div>
     </div>
 
@@ -1105,57 +1049,6 @@ function renderHome() {
       <p>ابدأ بالمذاكرة من قائمة المواد</p>
     </div>`}
   </div>`;
-}
-
-// ═══════════════════════════════════════════════════════
-//  TIMER (النسخة الأصلية الصحيحة)
-// ═══════════════════════════════════════════════════════
-function initTimerDisplay() {
-  const saved = LS.get(KEY_TIMER, { total: 0 });
-  timerSeconds = 0;
-  if (timerRunning) updateTimerDisplay();
-  else updateTimerDisplay();
-}
-function updateTimerDisplay() {
-  const el = document.getElementById('timer-disp');
-  const icon = document.getElementById('timer-icon');
-  const btn = document.getElementById('btn-startstop');
-  if (!el) return;
-  const h = String(Math.floor(timerSeconds/3600)).padStart(2,'0');
-  const m = String(Math.floor((timerSeconds%3600)/60)).padStart(2,'0');
-  const s = String(timerSeconds%60).padStart(2,'0');
-  el.textContent = `${h}:${m}:${s}`;
-  if (icon) icon.className = timerRunning ? 'ri-pause-fill' : 'ri-play-fill';
-  if (btn) btn.className = timerRunning ? 'timer-btn pause' : 'timer-btn start';
-}
-function toggleTimer() {
-  timerRunning = !timerRunning;
-  if (timerRunning) {
-    timerInterval = setInterval(() => {
-      timerSeconds++;
-      updateTimerDisplay();
-      if (timerSeconds % 30 === 0) saveTimerActivity();
-    }, 1000);
-  } else {
-    clearInterval(timerInterval);
-    saveTimerActivity();
-  }
-  updateTimerDisplay();
-}
-function resetTimer() {
-  clearInterval(timerInterval);
-  timerRunning = false;
-  timerSeconds = 0;
-  updateTimerDisplay();
-}
-function saveTimerActivity() {
-  const saved = LS.get(KEY_TIMER, { total: 0 });
-  saved.total = (saved.total || 0) + 30;
-  LS.set(KEY_TIMER, saved);
-  const act = LS.get(KEY_ACTIVITY, {});
-  const today = todayKey();
-  act[today] = (act[today] || 0) + 0.5;
-  LS.set(KEY_ACTIVITY, act);
 }
 
 // ═══════════════════════════════════════════════════════
@@ -1224,7 +1117,6 @@ function renderSearchResults(q) {
   }).join('');
 }
 
-// ... (دوال عرض المواد العادية renderCategory, renderSubject, renderUnit, renderLesson, renderBranchItem, toggleSubjectExpand, toggleUnitExpand, restoreExpandState) كما هي بدون تغيير ...
 function renderCategory(cat, q) {
   const subjects = cat.subjects.filter(subj => {
     if (!q) return true;
@@ -1305,6 +1197,7 @@ function renderBranchItem(branch) {
     <i class="ri-arrow-left-s-line branch-arrow"></i>
   </div>`;
 }
+
 function toggleSubjectExpand(subjectId, header) {
   const body = document.getElementById('body-subj-' + subjectId);
   const chevron = document.getElementById('chevron-subj-' + subjectId);
@@ -1653,17 +1546,15 @@ function deleteSession(idx) {
 }
 
 // ═══════════════════════════════════════════════════════
-//  STATS PAGE
+//  STATS PAGE (بدون عرض الوقت)
 // ═══════════════════════════════════════════════════════
 function renderStats() {
   const overall = calcOverallProgress();
-  const timerTotal = LS.get(KEY_TIMER, { total: 0 }).total;
-  const activity = LS.get(KEY_ACTIVITY, {});
-  const todayMin = activity[todayKey()] || 0;
 
   const allSubjects = STUDY_DATA.flatMap(cat => cat.subjects);
 
   const today = new Date();
+  const activity = LS.get(KEY_ACTIVITY, {});
   const heatCells = [];
   for (let i = 90; i >= 0; i--) {
     const d = new Date(today);
@@ -1683,11 +1574,7 @@ function renderStats() {
       </div>
       <div class="stats-mini">
         <div class="stats-mini-val text-green">${overall.done}</div>
-        <div class="stats-mini-lbl">فقرة</div>
-      </div>
-      <div class="stats-mini">
-        <div class="stats-mini-val" style="color:var(--yellow)">${Math.round(timerTotal/3600)}</div>
-        <div class="stats-mini-lbl">ساعات</div>
+        <div class="stats-mini-lbl">فقرات مكتملة</div>
       </div>
     </div>
 
@@ -1733,14 +1620,8 @@ function renderStats() {
       <div style="display:flex;justify-content:space-between;margin-bottom:8px;font-size:14px">
         <span>الفقرات المكتملة</span><strong>${overall.done} / ${overall.total}</strong>
       </div>
-      <div style="display:flex;justify-content:space-between;margin-bottom:8px;font-size:14px">
-        <span>إجمالي المراجعات</span><strong>${totalReviews()}</strong>
-      </div>
-      <div style="display:flex;justify-content:space-between;margin-bottom:8px;font-size:14px">
-        <span>دقائق اليوم</span><strong>${Math.round(todayMin)}</strong>
-      </div>
       <div style="display:flex;justify-content:space-between;font-size:14px">
-        <span>إجمالي ساعات الدراسة</span><strong>${Math.round(timerTotal/3600)} ساعة</strong>
+        <span>إجمالي المراجعات</span><strong>${totalReviews()}</strong>
       </div>
     </div>
 
