@@ -1003,7 +1003,7 @@ function renderHome() {
           </div>
         </div>
         <div class="home-hero-stats">
-          <div class="home-hero-stat"><span>الجزئيات المنجزة</span><strong>${overall.done}/${overall.total}</strong></div>
+          <div class="home-hero-stat"><span>الفقرات المنجزة</span><strong>${overall.done}/${overall.total}</strong></div>
           <div class="home-hero-stat"><span>المراجعات</span><strong>${totalReviews()}</strong></div>
           <div class="home-hero-stat"><span>وقت اليوم</span><strong>${todayMin} د</strong></div>
           <div class="home-hero-stat"><span>الوقت الإجمالي</span><strong>${Math.round(timerTotal/60)} د</strong></div>
@@ -1033,7 +1033,7 @@ function renderHome() {
       <div class="stat-card">
         <div class="stat-card-icon" style="color:var(--green)"><i class="ri-checkbox-circle-line"></i></div>
         <div class="stat-card-val">${overall.done}</div>
-        <div class="stat-card-lbl">جزئية مكتملة</div>
+        <div class="stat-card-lbl">فقرة مكتملة</div>
       </div>
       <div class="stat-card">
         <div class="stat-card-icon" style="color:var(--yellow)"><i class="ri-restart-line"></i></div>
@@ -1060,7 +1060,7 @@ function renderHome() {
           </div>
           <div class="recent-item-info">
             <div class="recent-item-title">${b.title}</div>
-            <div class="recent-item-sub">${b.subjectTitle} · ${bp.done}/${bp.total} جزئية</div>
+            <div class="recent-item-sub">${b.subjectTitle} · ${bp.done}/${bp.total} فقرة</div>
           </div>
           <i class="ri-arrow-left-s-line" style="color:var(--text3);font-size:18px"></i>
         </div>`;
@@ -1192,7 +1192,7 @@ function renderSubject(subj, q) {
       </div>
       <div class="subject-info">
         <div class="subject-name">${escHtml(subj.title)}</div>
-        <div class="subject-progress">${doneP}/${allP} جزئية · ${pct}%</div>
+        <div class="subject-progress">${doneP}/${allP} فقرة · ${pct}%</div>
       </div>
       <i class="ri-arrow-left-s-line subject-chevron" id="chevron-subj-${subj.id}"></i>
     </div>
@@ -1600,7 +1600,7 @@ function renderStats() {
       </div>
       <div class="stats-mini">
         <div class="stats-mini-val text-green">${overall.done}</div>
-        <div class="stats-mini-lbl">جزئيات</div>
+        <div class="stats-mini-lbl">فقرة</div>
       </div>
       <div class="stats-mini">
         <div class="stats-mini-val" style="color:var(--yellow)">${Math.round(timerTotal/3600)}</div>
@@ -1627,7 +1627,7 @@ function renderStats() {
           <div class="progress-bar-wrap" style="height:8px;border-radius:4px">
             <div class="progress-bar-fill" style="width:${pct}%;background:${meta.color};border-radius:4px"></div>
           </div>
-          <div style="font-size:11px;color:var(--text3);margin-top:4px">${doneP}/${allP} جزئية</div>
+          <div style="font-size:11px;color:var(--text3);margin-top:4px">${doneP}/${allP} فقرة</div>
         </div>`;
       }).join('')}
     </div>
@@ -1648,7 +1648,7 @@ function renderStats() {
     <div class="section-title">ملخص الإنجاز</div>
     <div style="background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius-sm);padding:14px">
       <div style="display:flex;justify-content:space-between;margin-bottom:8px;font-size:14px">
-        <span>الجزئيات المكتملة</span><strong>${overall.done} / ${overall.total}</strong>
+        <span>الفقرات المكتملة</span><strong>${overall.done} / ${overall.total}</strong>
       </div>
       <div style="display:flex;justify-content:space-between;margin-bottom:8px;font-size:14px">
         <span>إجمالي المراجعات</span><strong>${totalReviews()}</strong>
