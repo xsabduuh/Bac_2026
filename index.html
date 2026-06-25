@@ -1075,11 +1075,10 @@ function renderHome() {
 }
 
 // ═══════════════════════════════════════════════════════
-//  TIMER
+//  TIMER (تم إصلاح استئناف المؤقت بعد الإيقاف المؤقت)
 // ═══════════════════════════════════════════════════════
 function initTimerDisplay() {
-  const saved = LS.get(KEY_TIMER, { total: 0 });
-  timerSeconds = 0;
+  timerSeconds = 0;  // عند الدخول للصفحة الرئيسية يبدأ من الصفر
   updateTimerDisplay();
 }
 
@@ -1106,8 +1105,8 @@ function toggleTimer() {
     }, 1000);
   } else {
     clearInterval(timerInterval);
-    saveTimerActivity();
-    timerSeconds = 0;
+    saveTimerActivity();   // يحفظ الثواني المتراكمة ويصفر العداد
+    // ملاحظة: لا نعيد تعيين timerSeconds = 0 هنا لأن saveTimerActivity تفعل ذلك
   }
   updateTimerDisplay();
 }
@@ -1116,11 +1115,12 @@ function resetTimer() {
   clearInterval(timerInterval);
   if (timerRunning) saveTimerActivity();
   timerRunning = false;
-  timerSeconds = 0;
+  timerSeconds = 0;   // هنا نصفر العداد لأنه إعادة ضبط كاملة
   updateTimerDisplay();
 }
 
 function saveTimerActivity() {
+  if (timerSeconds <= 0) return;
   const saved = LS.get(KEY_TIMER, { total: 0 });
   saved.total = (saved.total || 0) + timerSeconds;
   LS.set(KEY_TIMER, saved);
@@ -1128,7 +1128,7 @@ function saveTimerActivity() {
   const today = todayKey();
   act[today] = (act[today] || 0) + Math.ceil(timerSeconds / 60);
   LS.set(KEY_ACTIVITY, act);
-  timerSeconds = 0;
+  timerSeconds = 0;   // نصفر بعد الحفظ
 }
 
 // ═══════════════════════════════════════════════════════
