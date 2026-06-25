@@ -5,7 +5,7 @@ const STUDY_DATA = [
     subjects: [
       {
         id: "subj-physics",
-        title: "الفيزياء والكيمياء",
+        title: "الفيزياء",
         units: [
           {
             id: "unit-phys-1",
