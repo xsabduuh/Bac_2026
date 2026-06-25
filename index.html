@@ -2,7 +2,7 @@
 <html lang="ar" dir="rtl">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, viewport-fit=cover">
 <title>منصة الدراسة - باك مغرب</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@300;400;500;600;700&display=swap" rel="stylesheet">
@@ -63,7 +63,8 @@ body {
   transition: background var(--transition), color var(--transition);
 }
 #app {
-  height: 100vh;
+  height: 100vh;        /* fallback للمتصفحات القديمة */
+  height: 100dvh;       /* الارتفاع الديناميكي الحقيقي (يحتسب شريط العنوان) */
   display: flex;
   flex-direction: column;
   position: relative;
@@ -782,12 +783,12 @@ const LS = {
   set: (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} }
 };
 
-const KEY_PROGRESS  = 'sp_progress';   // { [partialId]: { completed, reviewCount } }
-const KEY_NOTES     = 'sp_notes';      // { [partialId]: string }
-const KEY_EXERCISES = 'sp_exercises';  // { [partialId]: [{ text, done }] }
-const KEY_ACTIVITY  = 'sp_activity';   // { [dateISO]: minutes }
-const KEY_TIMER     = 'sp_timer';      // { total: seconds }
-const KEY_SCHEDULE  = 'sp_schedule';   // { [dateISO]: [{ subject, time, note }] }
+const KEY_PROGRESS  = 'sp_progress';
+const KEY_NOTES     = 'sp_notes';
+const KEY_EXERCISES = 'sp_exercises';
+const KEY_ACTIVITY  = 'sp_activity';
+const KEY_TIMER     = 'sp_timer';
+const KEY_SCHEDULE  = 'sp_schedule';
 const KEY_THEME     = 'sp_theme';
 
 // ═══════════════════════════════════════════════════════
@@ -883,7 +884,6 @@ function todayKey() {
   return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
 }
 
-// subject icons + colors
 const SUBJ_META = {
   'subj-physics':      { icon: 'ri-flashlight-line',  color: '#f59e0b', bg: 'rgba(245,158,11,0.15)' },
   'subj-chem':         { icon: 'ri-flask-line',        color: '#ef4444', bg: 'rgba(239,68,68,0.12)' },
@@ -908,6 +908,7 @@ let timerSeconds = 0;
 let timerRunning = false;
 
 function nav(page, push = true) {
+  console.log('nav to', page);
   if (push && currentPage !== page) historyStack.push(currentPage);
   currentPage = page;
   updateNav(page);
@@ -949,14 +950,20 @@ function showToast(msg) {
 // ═══════════════════════════════════════════════════════
 function renderPage(page) {
   const container = document.getElementById('page-content');
+  if (!container) return;
   container.scrollTop = 0;
-  if (page === 'home')              container.innerHTML = renderHome();
-  else if (page === 'subjects')     container.innerHTML = renderSubjects();
-  else if (page === 'schedule')     container.innerHTML = renderSchedule();
-  else if (page === 'stats')        container.innerHTML = renderStats();
-  else if (page.startsWith('branch:')) {
-    container.innerHTML = renderBranch(page.replace('branch:', ''));
-    initBranchEvents();
+  try {
+    if (page === 'home')              container.innerHTML = renderHome();
+    else if (page === 'subjects')     container.innerHTML = renderSubjects();
+    else if (page === 'schedule')     container.innerHTML = renderSchedule();
+    else if (page === 'stats')        container.innerHTML = renderStats();
+    else if (page.startsWith('branch:')) {
+      container.innerHTML = renderBranch(page.replace('branch:', ''));
+      initBranchEvents();
+    }
+  } catch (e) {
+    console.error('خطأ في عرض الصفحة:', e);
+    container.innerHTML = '<div class="page-inner"><p>حدث خطأ أثناء تحميل الصفحة.</p></div>';
   }
   if (page === 'home') initTimerDisplay();
 }
@@ -1073,8 +1080,7 @@ function renderHome() {
 function initTimerDisplay() {
   const saved = LS.get(KEY_TIMER, { total: 0 });
   timerSeconds = 0;
-  if (timerRunning) updateTimerDisplay();
-  else updateTimerDisplay();
+  updateTimerDisplay();
 }
 
 function updateTimerDisplay() {
@@ -1096,9 +1102,7 @@ function toggleTimer() {
     timerInterval = setInterval(() => {
       timerSeconds++;
       updateTimerDisplay();
-      if (timerSeconds % 30 === 0) {
-        saveTimerActivity();
-      }
+      if (timerSeconds % 30 === 0) saveTimerActivity();
     }, 1000);
   } else {
     clearInterval(timerInterval);
@@ -1110,9 +1114,7 @@ function toggleTimer() {
 
 function resetTimer() {
   clearInterval(timerInterval);
-  if (timerRunning) {
-    saveTimerActivity();
-  }
+  if (timerRunning) saveTimerActivity();
   timerRunning = false;
   timerSeconds = 0;
   updateTimerDisplay();
@@ -1122,12 +1124,10 @@ function saveTimerActivity() {
   const saved = LS.get(KEY_TIMER, { total: 0 });
   saved.total = (saved.total || 0) + timerSeconds;
   LS.set(KEY_TIMER, saved);
-
   const act = LS.get(KEY_ACTIVITY, {});
   const today = todayKey();
   act[today] = (act[today] || 0) + Math.ceil(timerSeconds / 60);
   LS.set(KEY_ACTIVITY, act);
-
   timerSeconds = 0;
 }
 
