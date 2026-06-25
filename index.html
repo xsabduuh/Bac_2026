@@ -63,8 +63,8 @@ body {
   transition: background var(--transition), color var(--transition);
 }
 #app {
-  height: 100vh;        /* fallback للمتصفحات القديمة */
-  height: 100dvh;       /* الارتفاع الديناميكي الحقيقي (يحتسب شريط العنوان) */
+  height: 100vh;        /* fallback */
+  height: 100dvh;       /* الارتفاع الديناميكي الحقيقي */
   display: flex;
   flex-direction: column;
   position: relative;
@@ -975,8 +975,7 @@ function renderHome() {
   const overall = calcOverallProgress();
   const r = 35, c = 2 * Math.PI * r;
   const offset = c - (overall.pct / 100) * c;
-  const timerData = LS.get(KEY_TIMER, { total: 0 });
-  const timerTotal = timerData.total;
+  const timerTotal = LS.get(KEY_TIMER, { total: 0 }).total;
   const activity = LS.get(KEY_ACTIVITY, {});
   const todayMin = activity[todayKey()] || 0;
 
@@ -1075,13 +1074,14 @@ function renderHome() {
 }
 
 // ═══════════════════════════════════════════════════════
-//  TIMER (تم إصلاح استئناف المؤقت بعد الإيقاف المؤقت)
+//  TIMER (النسخة الأصلية الصحيحة من أول ملف أرسلته)
 // ═══════════════════════════════════════════════════════
 function initTimerDisplay() {
-  timerSeconds = 0;  // عند الدخول للصفحة الرئيسية يبدأ من الصفر
-  updateTimerDisplay();
+  const saved = LS.get(KEY_TIMER, { total: 0 });
+  timerSeconds = 0;
+  if (timerRunning) updateTimerDisplay();
+  else updateTimerDisplay();
 }
-
 function updateTimerDisplay() {
   const el = document.getElementById('timer-disp');
   const icon = document.getElementById('timer-icon');
@@ -1094,41 +1094,35 @@ function updateTimerDisplay() {
   if (icon) icon.className = timerRunning ? 'ri-pause-fill' : 'ri-play-fill';
   if (btn) btn.className = timerRunning ? 'timer-btn pause' : 'timer-btn start';
 }
-
 function toggleTimer() {
   timerRunning = !timerRunning;
   if (timerRunning) {
     timerInterval = setInterval(() => {
       timerSeconds++;
       updateTimerDisplay();
+      // Save every 30s
       if (timerSeconds % 30 === 0) saveTimerActivity();
     }, 1000);
   } else {
     clearInterval(timerInterval);
-    saveTimerActivity();   // يحفظ الثواني المتراكمة ويصفر العداد
-    // ملاحظة: لا نعيد تعيين timerSeconds = 0 هنا لأن saveTimerActivity تفعل ذلك
+    saveTimerActivity();
   }
   updateTimerDisplay();
 }
-
 function resetTimer() {
   clearInterval(timerInterval);
-  if (timerRunning) saveTimerActivity();
   timerRunning = false;
-  timerSeconds = 0;   // هنا نصفر العداد لأنه إعادة ضبط كاملة
+  timerSeconds = 0;
   updateTimerDisplay();
 }
-
 function saveTimerActivity() {
-  if (timerSeconds <= 0) return;
   const saved = LS.get(KEY_TIMER, { total: 0 });
-  saved.total = (saved.total || 0) + timerSeconds;
+  saved.total = (saved.total || 0) + 30;  // ثابت كما في النسخة الأولى
   LS.set(KEY_TIMER, saved);
   const act = LS.get(KEY_ACTIVITY, {});
   const today = todayKey();
-  act[today] = (act[today] || 0) + Math.ceil(timerSeconds / 60);
+  act[today] = (act[today] || 0) + 0.5; // 30 seconds = 0.5 minutes
   LS.set(KEY_ACTIVITY, act);
-  timerSeconds = 0;   // نصفر بعد الحفظ
 }
 
 // ═══════════════════════════════════════════════════════
@@ -1536,8 +1530,7 @@ function deleteSession(idx) {
 // ═══════════════════════════════════════════════════════
 function renderStats() {
   const overall = calcOverallProgress();
-  const timerData = LS.get(KEY_TIMER, { total: 0 });
-  const timerTotal = timerData.total;
+  const timerTotal = LS.get(KEY_TIMER, { total: 0 }).total;
   const activity = LS.get(KEY_ACTIVITY, {});
   const todayMin = activity[todayKey()] || 0;
 
