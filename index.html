@@ -1112,18 +1112,26 @@ function renderPage(page) {
 }
 
 // ═══════════════════════════════════════════════════════
-//  HOME PAGE
+//  HOME PAGE (تم إصلاح قسم "آخر ما درسته")
 // ═══════════════════════════════════════════════════════
 function renderHome() {
   const overall = calcOverallProgress();
   const r = 35, c = 2 * Math.PI * r;
   const offset = c - (overall.pct / 100) * c;
 
-  const allBranches = getAllBranches();
+  // ── إصلاح: الحصول على الفروع التي تمت دراستها بناءً على progress ──
   const prog = getProgress();
-  const recentBranches = allBranches.filter(b => {
-    return b.partials.some(p => prog[p.id]);
-  }).slice(0, 5);
+  const studiedBranchIds = new Set();
+  // نجمع كل الجزئيات التي لها تقدم (مكتملة أو مراجعة) ونضيف branchId الخاص بها
+  getAllPartials().forEach(p => {
+    if (prog[p.id] && (prog[p.id].completed || prog[p.id].reviewCount > 0)) {
+      studiedBranchIds.add(p.branchId);
+    }
+  });
+  // نحصل على كائنات الفروع التي تمت دراستها
+  const allBranches = getAllBranches();
+  const studiedBranches = allBranches.filter(b => studiedBranchIds.has(b.id)).slice(0, 5);
+  // ─────────────────────────────────────────────────
 
   const totalLessons = allBranches.length;
 
@@ -1174,10 +1182,10 @@ function renderHome() {
       </div>
     </div>
 
-    ${recentBranches.length ? `
+    ${studiedBranches.length ? `
     <div class="section-title">آخر ما درسته</div>
     <div class="recent-list">
-      ${recentBranches.map(b => {
+      ${studiedBranches.map(b => {
         const meta = subjMeta(b.subjectId);
         const bp = calcBranchProgress(b.id);
         return `
