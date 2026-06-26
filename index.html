@@ -1430,15 +1430,9 @@ function clearWeeklyGoal() {
 }
 function calcGoalProgress(goal) {
   const { partials } = goal;
-  const start = new Date(goal.startDate);
-  const end = new Date(goal.endDate);
   let done = 0;
   partials.forEach(pid => {
-    const p = getProgress()[pid];
-    if (p && p.completed && p.completedAt) {
-      const compDate = new Date(p.completedAt);
-      if (compDate >= start && compDate < end) done++;
-    }
+    if (isCompleted(pid)) done++;
   });
   return { done, total: partials.length, pct: partials.length ? Math.round((done / partials.length) * 100) : 0 };
 }
@@ -1451,7 +1445,12 @@ let historyStack = [];
 
 function nav(page, push = true) {
   console.log('nav to', page);
-  if (push && currentPage !== page) historyStack.push(currentPage);
+  const mainPages = ['home', 'subjects', 'schedule', 'stats'];
+  if (mainPages.includes(page)) {
+    historyStack = [];
+  } else if (push && currentPage !== page) {
+    historyStack.push(currentPage);
+  }
   currentPage = page;
   updateNav(page);
   renderPage(page);
@@ -1633,8 +1632,8 @@ function renderHome() {
             <i class="${meta.icon}"></i>
           </div>
           <div class="recent-item-info">
-            <div class="recent-item-title">${b.title}</div>
-            <div class="recent-item-sub">${b.subjectTitle} · ${bp.done}/${bp.total} فقرة</div>
+            <div class="recent-item-title">${escHtml(b.title)}</div>
+            <div class="recent-item-sub">${escHtml(b.subjectTitle)} · ${bp.done}/${bp.total} فقرة</div>
           </div>
           <i class="ri-arrow-left-s-line" style="color:var(--text3);font-size:18px"></i>
         </div>`;
@@ -1669,8 +1668,6 @@ function renderSubjects() {
 function onSearchInput(value) {
   searchQuery = value;
   updateSubjectsResults();
-  const input = document.getElementById('search-input');
-  if (input) setTimeout(() => input.focus(), 0);
 }
 
 function updateSubjectsResults() {
@@ -2101,7 +2098,7 @@ function renderSessionsList(sessions) {
     <div class="session-card ${completedClass}" id="session-${i}">
       <div class="session-time-badge">${s.time}</div>
       <div class="session-info">
-        <div class="session-subject" style="color:${meta.color}; ${s.completed ? 'text-decoration: line-through; opacity:0.7;' : ''}">${subj ? subj.title : s.subjectId}</div>
+        <div class="session-subject" style="color:${meta.color}; ${s.completed ? 'text-decoration: line-through; opacity:0.7;' : ''}">${subj ? escHtml(subj.title) : escHtml(s.subjectId)}</div>
         ${durationText ? `<div class="session-detail">⏱ ${durationText}</div>` : ''}
         ${s.note ? `<div class="session-detail">${escHtml(s.note)}</div>` : ''}
       </div>
@@ -2252,7 +2249,6 @@ function openGoalModal() {
   const input = document.getElementById('goal-search-input');
   if (input) {
     input.value = goalModalSearchQuery;
-    input.focus();
     setTimeout(() => input.focus(), 50); // للحفاظ على التركيز على الجوال
   }
   const existingGoal = getWeeklyGoal();
@@ -2271,7 +2267,15 @@ function onGoalModalSearch() {
   const existingGoal = getWeeklyGoal();
   const selectedIds = existingGoal ? existingGoal.partials : [];
   document.getElementById('goal-modal-results').innerHTML = renderGoalResults(selectedIds);
-  // لا نلمس input، يبقى التركيز كما هو
+}
+
+function toggleGoalCheckbox(checkboxEl) {
+  const checked = checkboxEl.checked;
+  const box = checkboxEl.previousElementSibling;
+  if (box) {
+    box.classList.toggle('checked', checked);
+    box.innerHTML = checked ? '<i class="ri-check-line"></i>' : '';
+  }
 }
 
 function renderGoalResults(selectedIds) {
@@ -2293,9 +2297,9 @@ function renderGoalResults(selectedIds) {
           <div class="modal-partial-checkbox ${checked ? 'checked' : ''}">
             ${checked ? '<i class="ri-check-line"></i>' : ''}
           </div>
-          <input type="checkbox" value="${p.id}" ${checked ? 'checked' : ''} style="display:none" onchange="this.previousElementSibling.classList.toggle('checked', this.checked); if(this.checked){ this.previousElementSibling.innerHTML='<i class=\\'ri-check-line\\'></i>' } else { this.previousElementSibling.innerHTML='' }">
+          <input type="checkbox" value="${p.id}" ${checked ? 'checked' : ''} style="display:none" onchange="toggleGoalCheckbox(this)">
           <span class="modal-partial-title">${escHtml(p.title)}</span>
-          <span style="font-size:11px; color:var(--text3)">${p.subjectTitle} · ${p.branchTitle}</span>
+          <span style="font-size:11px; color:var(--text3)">${escHtml(p.subjectTitle)} · ${escHtml(p.branchTitle)}</span>
         </label>`;
       });
       html += '</div>';
@@ -2352,7 +2356,7 @@ function renderGoalResults(selectedIds) {
                   <div class="modal-partial-checkbox ${checked ? 'checked' : ''}">
                     ${checked ? '<i class="ri-check-line"></i>' : ''}
                   </div>
-                  <input type="checkbox" value="${p.id}" ${checked ? 'checked' : ''} style="display:none" onchange="this.previousElementSibling.classList.toggle('checked', this.checked); if(this.checked){ this.previousElementSibling.innerHTML='<i class=\\'ri-check-line\\'></i>' } else { this.previousElementSibling.innerHTML='' }">
+                  <input type="checkbox" value="${p.id}" ${checked ? 'checked' : ''} style="display:none" onchange="toggleGoalCheckbox(this)">
                   <span class="modal-partial-title">${escHtml(p.title)}</span>
                 </label>`;
               }).join('')}
@@ -2413,8 +2417,12 @@ function closeChecklistModal() {
 
 function renderChecklist() {
   const goal = getWeeklyGoal();
-  if (!goal) return;
   const body = document.getElementById('checklist-body');
+  if (!body) return;
+  if (!goal || !goal.partials || goal.partials.length === 0) {
+    body.innerHTML = '<p style="text-align:center;padding:20px">لا توجد مهام</p>';
+    return;
+  }
   let html = '';
   const allPartials = getAllPartials();
   goal.partials.forEach(pid => {
@@ -2432,11 +2440,11 @@ function renderChecklist() {
           </button>
         </div>
         <div class="checklist-item-title">${escHtml(p.title)}</div>
-        <div class="checklist-item-sub">${p.subjectTitle} · ${p.branchTitle}</div>
+        <div class="checklist-item-sub">${escHtml(p.subjectTitle)} · ${escHtml(p.branchTitle)}</div>
       </div>`;
     }
   });
-  body.innerHTML = html || '<p style="text-align:center;padding:20px">لا توجد مهام</p>';
+  body.innerHTML = html;
 }
 
 function toggleChecklistItem(pid) {
@@ -2450,6 +2458,7 @@ function removeChecklistItem(pid) {
   goal.partials = goal.partials.filter(id => id !== pid);
   if (goal.partials.length === 0) {
     clearWeeklyGoal();
+    closeChecklistModal();
   } else {
     LS.set(KEY_WEEKLY_GOAL, goal);
   }
@@ -2496,6 +2505,7 @@ function updateGoalCardDisplay() {
 //  UTILS
 // ═══════════════════════════════════════════════════════
 function escHtml(str) {
+  if (str === undefined || str === null) return '';
   return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
 
