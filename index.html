@@ -1179,7 +1179,7 @@ const SUBJ_META = {
 function subjMeta(id) { return SUBJ_META[id] || { icon: 'ri-book-line', color: '#6c63ff', bg: 'rgba(108,99,255,0.15)' }; }
 
 // ═══════════════════════════════════════════════════════
-//  WEEKLY GOAL HELPERS (تم تعديلها لتواريخ الأسبوع)
+//  WEEKLY GOAL HELPERS (تواريخ كاملة)
 // ═══════════════════════════════════════════════════════
 function getCurrentWeekMonday() {
   const now = new Date();
@@ -1192,7 +1192,7 @@ function getCurrentWeekMonday() {
 }
 function getWeekEnd(monday) {
   const end = new Date(monday);
-  end.setDate(monday.getDate() + 7); // الاثنين التالي (00:00)
+  end.setDate(monday.getDate() + 7);
   return end;
 }
 function getWeekKey() {
@@ -1328,7 +1328,7 @@ function renderHome() {
   const studiedBranches = allBranches.filter(b => studiedBranchIds.has(b.id)).slice(0, 5);
   const totalLessons = allBranches.length;
 
-  // الهدف الأسبوعي مع تواريخ البداية والنهاية
+  // الهدف الأسبوعي
   const weeklyGoal = getWeeklyGoal();
   let goalCard = '';
   if (weeklyGoal && weeklyGoal.partials.length) {
@@ -1338,7 +1338,6 @@ function renderHome() {
     const startDate = weeklyGoal.startDate ? formatDate(new Date(weeklyGoal.startDate)) : '';
     const endDate = weeklyGoal.endDate ? formatDate(new Date(weeklyGoal.endDate)) : '';
     const dateRange = startDate && endDate ? `(${startDate} - ${endDate})` : '';
-
     goalCard = `
     <div class="goal-progress-card">
       <div class="goal-circle-wrap">
@@ -1442,8 +1441,678 @@ function renderHome() {
   </div>`;
 }
 
-// ── بقية دوال الصفحات (subjects, schedule, stats, branch view) بدون تغيير ──
-// ... (نفس الكود السابق بالكامل)
+// ═══════════════════════════════════════════════════════
+//  SUBJECTS PAGE
+// ═══════════════════════════════════════════════════════
+let searchQuery = '';
+const expandedSubjects = new Set();
+const expandedUnits = new Set();
+
+function renderSubjects() {
+  return `
+  <div class="page-inner">
+    <div class="search-bar">
+      <i class="ri-search-line"></i>
+      <input type="search" id="search-input" placeholder="ابحث عن مادة أو درس..." value="${escHtml(searchQuery)}"
+        oninput="onSearchInput(this.value)" autocomplete="off" />
+    </div>
+    <div id="subjects-results"></div>
+  </div>`;
+}
+
+function onSearchInput(value) {
+  searchQuery = value;
+  updateSubjectsResults();
+  const input = document.getElementById('search-input');
+  if (input) setTimeout(() => input.focus(), 0);
+}
+
+function updateSubjectsResults() {
+  const container = document.getElementById('subjects-results');
+  if (!container) return;
+  const q = searchQuery.toLowerCase().trim();
+
+  if (q === '') {
+    container.innerHTML = STUDY_DATA.map(cat => renderCategory(cat, '')).join('');
+    restoreExpandState();
+  } else {
+    container.innerHTML = renderSearchResults(q);
+  }
+}
+
+function renderSearchResults(q) {
+  const branches = getAllBranches();
+  const matchingBranches = branches.filter(b => b.title.toLowerCase().includes(q));
+
+  if (matchingBranches.length === 0) {
+    return '<div class="empty-state"><i class="ri-search-line"></i><p>لا توجد نتائج</p></div>';
+  }
+
+  return matchingBranches.map(branch => {
+    const meta = subjMeta(branch.subjectId);
+    const doneCount = branch.partials.filter(p => isCompleted(p.id)).length;
+    return `
+    <div class="subject-card" style="margin-bottom:8px">
+      <div class="subject-header" onclick="nav('branch:${branch.id}')" style="padding:12px 14px; display:flex; align-items:center; gap:10px; cursor:pointer;">
+        <div class="subject-icon" style="background:${meta.bg};color:${meta.color}; width:38px; height:38px; border-radius:10px; display:flex; align-items:center; justify-content:center; font-size:20px;">
+          <i class="${meta.icon}"></i>
+        </div>
+        <div class="subject-info" style="flex:1; min-width:0;">
+          <div class="subject-name">${escHtml(branch.title)}</div>
+          <div class="subject-progress" style="font-size:12px; color:var(--text3); margin-top:2px;">${escHtml(branch.subjectTitle)} · ${escHtml(branch.lessonTitle)} · ${doneCount}/${branch.partials.length} فقرة</div>
+        </div>
+        <i class="ri-arrow-left-s-line" style="color:var(--text3); font-size:18px;"></i>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function renderCategory(cat, q) {
+  const subjects = cat.subjects.filter(subj => {
+    if (!q) return true;
+    return subj.title.toLowerCase().includes(q) ||
+      subj.units.some(u => u.title.toLowerCase().includes(q) ||
+        u.lessons.some(l => l.title.toLowerCase().includes(q) ||
+          l.branches.some(b => b.title.toLowerCase().includes(q))
+        )
+      );
+  });
+  if (!subjects.length) return '';
+  const totalP = subjects.reduce((s,subj)=>s+subj.units.reduce((s2,u)=>s2+u.lessons.reduce((s3,l)=>s3+l.branches.reduce((s4,b)=>s4+b.partials.length,0),0),0),0);
+  const doneP = subjects.reduce((s,subj)=>s+subj.units.reduce((s2,u)=>s2+u.lessons.reduce((s3,l)=>s3+l.branches.reduce((s4,b)=>s4+b.partials.filter(p=>isCompleted(p.id)).length,0),0),0),0);
+  return `
+  <div class="category-block">
+    <div class="category-header">
+      <i class="ri-folder-line" style="font-size:20px"></i>
+      <span class="category-header-text">${escHtml(cat.title)}</span>
+      <span class="category-badge">${doneP}/${totalP}</span>
+    </div>
+    ${subjects.map(subj => renderSubject(subj, q)).join('')}
+  </div>`;
+}
+function renderSubject(subj, q) {
+  const meta = subjMeta(subj.id);
+  const pct = calcSubjectProgress(subj.id);
+  const allP = subj.units.reduce((s,u)=>s+u.lessons.reduce((s2,l)=>s2+l.branches.reduce((s3,b)=>s3+b.partials.length,0),0),0);
+  const doneP = subj.units.reduce((s,u)=>s+u.lessons.reduce((s2,l)=>s2+l.branches.reduce((s3,b)=>s3+b.partials.filter(p=>isCompleted(p.id)).length,0),0),0);
+  return `
+  <div class="subject-card" data-subject-id="${subj.id}">
+    <div class="subject-header" onclick="toggleSubjectExpand('${subj.id}', this)">
+      <div class="subject-icon" style="background:${meta.bg};color:${meta.color}">
+        <i class="${meta.icon}"></i>
+      </div>
+      <div class="subject-info">
+        <div class="subject-name">${escHtml(subj.title)}</div>
+        <div class="subject-progress">${doneP}/${allP} فقرة · ${pct}%</div>
+      </div>
+      <i class="ri-arrow-left-s-line subject-chevron" id="chevron-subj-${subj.id}"></i>
+    </div>
+    <div class="progress-bar-wrap">
+      <div class="progress-bar-fill" style="width:${pct}%"></div>
+    </div>
+    <div class="subject-body" id="body-subj-${subj.id}">
+      ${subj.units.map(unit => renderUnit(unit, q)).join('')}
+    </div>
+  </div>`;
+}
+function renderUnit(unit, q) {
+  return `
+  <div class="unit-block" data-unit-id="${unit.id}">
+    <div class="unit-header" onclick="toggleUnitExpand('${unit.id}', this)">
+      <i class="ri-arrow-left-s-line unit-chevron" id="chevron-unit-${unit.id}"></i>
+      <span class="unit-title">${escHtml(unit.title)}</span>
+    </div>
+    <div class="unit-body" id="body-unit-${unit.id}">
+      ${unit.lessons.map(lesson => renderLesson(lesson, q)).join('')}
+    </div>
+  </div>`;
+}
+function renderLesson(lesson, q) {
+  return `
+  <div class="lesson-item">
+    <div class="lesson-title"><i class="ri-book-2-line"></i>${escHtml(lesson.title)}</div>
+    ${lesson.branches.map(branch => renderBranchItem(branch)).join('')}
+  </div>`;
+}
+function renderBranchItem(branch) {
+  const ps = branch.partials;
+  const done = ps.filter(p => isCompleted(p.id)).length;
+  const isDone = done === ps.length && ps.length > 0;
+  const isPartial = done > 0 && done < ps.length;
+  return `
+  <div class="branch-item" onclick="nav('branch:${branch.id}')">
+    <div class="branch-dot ${isDone?'done':isPartial?'partial':''}"></div>
+    <span class="branch-name">${escHtml(branch.title)}</span>
+    <span class="branch-count">${done}/${ps.length}</span>
+    <i class="ri-arrow-left-s-line branch-arrow"></i>
+  </div>`;
+}
+
+function toggleSubjectExpand(subjectId, header) {
+  const body = document.getElementById('body-subj-' + subjectId);
+  const chevron = document.getElementById('chevron-subj-' + subjectId);
+  if (!body) return;
+  if (body.classList.contains('open')) {
+    body.classList.remove('open');
+    if (chevron) chevron.classList.remove('open');
+    expandedSubjects.delete(subjectId);
+  } else {
+    body.classList.add('open');
+    if (chevron) chevron.classList.add('open');
+    expandedSubjects.add(subjectId);
+  }
+}
+function toggleUnitExpand(unitId, header) {
+  const body = document.getElementById('body-unit-' + unitId);
+  const chevron = document.getElementById('chevron-unit-' + unitId);
+  if (!body) return;
+  if (body.classList.contains('open')) {
+    body.classList.remove('open');
+    if (chevron) chevron.classList.remove('open');
+    expandedUnits.delete(unitId);
+  } else {
+    body.classList.add('open');
+    if (chevron) chevron.classList.add('open');
+    expandedUnits.add(unitId);
+  }
+}
+function restoreExpandState() {
+  expandedSubjects.forEach(id => {
+    const body = document.getElementById('body-subj-' + id);
+    const chevron = document.getElementById('chevron-subj-' + id);
+    if (body) body.classList.add('open');
+    if (chevron) chevron.classList.add('open');
+  });
+  expandedUnits.forEach(id => {
+    const body = document.getElementById('body-unit-' + id);
+    const chevron = document.getElementById('chevron-unit-' + id);
+    if (body) body.classList.add('open');
+    if (chevron) chevron.classList.add('open');
+  });
+}
+
+// ═══════════════════════════════════════════════════════
+//  BRANCH VIEW
+// ═══════════════════════════════════════════════════════
+function renderBranch(branchId) {
+  const branch = findBranch(branchId);
+  if (!branch) return '<div class="page-inner"><p>الفرع غير موجود</p></div>';
+  const bp = calcBranchProgress(branchId);
+  return `
+  <div class="page-inner">
+    <div class="branch-header-card">
+      <div class="branch-breadcrumb">${escHtml(branch.catTitle)} / ${escHtml(branch.subjectTitle)} / ${escHtml(branch.unitTitle)} / ${escHtml(branch.lessonTitle)}</div>
+      <div class="branch-main-title">${escHtml(branch.title)}</div>
+      <div class="branch-progress-row">
+        <div class="branch-progress-bar">
+          <div class="progress-bar-fill" style="width:${bp.pct}%"></div>
+        </div>
+        <span class="branch-progress-val">${bp.done}/${bp.total}</span>
+      </div>
+    </div>
+    <div class="partial-list" id="partial-list">
+      ${branch.partials.map((p, i) => renderPartialCard(p, i)).join('')}
+    </div>
+  </div>`;
+}
+function renderPartialCard(p, i) {
+  const done = isCompleted(p.id);
+  const rc = getReviewCount(p.id);
+  return `
+  <div class="partial-card ${done?'completed':''}" id="pc-${p.id}">
+    <div class="partial-header" onclick="togglePartial('${p.id}')">
+      <div class="partial-check ${done?'done':''}" id="chk-${p.id}">
+        ${done ? '<i class="ri-check-line"></i>' : ''}
+      </div>
+      <div class="partial-info">
+        <div class="partial-title">${escHtml(p.title)}</div>
+        <div class="partial-meta">
+          ${done ? `<span class="chip chip-green"><i class="ri-check-line"></i> مكتمل</span>` : '<span class="chip chip-accent"><i class="ri-time-line"></i> قيد الدراسة</span>'}
+          ${rc > 0 ? `<span class="chip chip-yellow"><i class="ri-restart-line"></i> ${rc} مراجعات</span>` : ''}
+        </div>
+      </div>
+      <i class="ri-arrow-down-s-line" id="chevron-${p.id}" style="color:var(--text3);font-size:20px;transition:transform 0.2s"></i>
+    </div>
+    <div class="partial-body" id="pb-${p.id}">
+      <div class="tab-bar">
+        <button class="tab-btn active" id="tab-notes-${p.id}" onclick="switchTab('${p.id}','notes')">
+          <i class="ri-file-text-line"></i> ملاحظات
+        </button>
+        <button class="tab-btn" id="tab-exercises-${p.id}" onclick="switchTab('${p.id}','exercises')">
+          <i class="ri-todo-line"></i> تمارين
+        </button>
+        <button class="tab-btn" id="tab-review-${p.id}" onclick="switchTab('${p.id}','review')">
+          <i class="ri-restart-line"></i> مراجعة
+        </button>
+      </div>
+      <div id="tab-content-${p.id}">
+        ${renderNotesTab(p.id)}
+      </div>
+      <div class="complete-btn-wrap">
+        <button class="complete-btn ${done?'done':'undone'}" id="cbtn-${p.id}" onclick="toggleComplete('${p.id}')">
+          ${done ? `<i class="ri-checkbox-circle-fill"></i> إلغاء الإكمال` : `<i class="ri-checkbox-circle-line"></i> تحديد كمكتملة`}
+        </button>
+      </div>
+    </div>
+  </div>`;
+}
+function renderNotesTab(pid) {
+  const notes = getNotes(pid);
+  return `
+  <div class="content-area" id="notes-area-${pid}">
+    <textarea class="notes-textarea" id="notes-ta-${pid}" placeholder="أضف ملاحظاتك هنا...">${escHtml(notes)}</textarea>
+    <button class="save-notes-btn" onclick="saveNotes('${pid}')"><i class="ri-save-line"></i> حفظ</button>
+  </div>`;
+}
+function renderExercisesTab(pid) {
+  const exs = getExercises(pid);
+  return `
+  <div class="exercises-area" id="exs-area-${pid}">
+    ${exs.length ? exs.map((ex, i) => `
+    <div class="exercise-item" id="ex-${pid}-${i}">
+      <div class="exercise-check ${ex.done?'done':''}" onclick="toggleExercise('${pid}',${i})">
+        ${ex.done ? '<i class="ri-check-line"></i>' : ''}
+      </div>
+      <div class="exercise-text" style="${ex.done?'text-decoration:line-through;opacity:0.5':''}">${escHtml(ex.text)}</div>
+      <button style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:16px" onclick="deleteExercise('${pid}',${i})">
+        <i class="ri-delete-bin-line"></i>
+      </button>
+    </div>`).join('') : '<p style="font-size:13px;color:var(--text3);text-align:center;padding:16px">لا تمارين مضافة</p>'}
+    <div class="add-exercise-row">
+      <input class="add-exercise-input" id="ex-input-${pid}" placeholder="أضف تمريناً جديداً..." onkeydown="if(event.key==='Enter')addExercise('${pid}')"/>
+      <button class="add-exercise-btn" onclick="addExercise('${pid}')"><i class="ri-add-line"></i></button>
+    </div>
+  </div>`;
+}
+function renderReviewTab(pid) {
+  const rc = getReviewCount(pid);
+  return `
+  <div class="review-section">
+    <div class="review-count">مراجعات: <strong>${rc}</strong></div>
+    <button class="review-btn" onclick="addReview('${pid}')">
+      <i class="ri-restart-line"></i> سجّل مراجعة
+    </button>
+  </div>`;
+}
+function initBranchEvents() { /* events are inline onclick */ }
+function togglePartial(pid) {
+  const body = document.getElementById('pb-' + pid);
+  const chevron = document.getElementById('chevron-' + pid);
+  if (!body) return;
+  const isOpen = body.classList.contains('open');
+  document.querySelectorAll('.partial-body.open').forEach(el => el.classList.remove('open'));
+  document.querySelectorAll('[id^="chevron-"]').forEach(el => el.style.transform = '');
+  if (!isOpen) {
+    body.classList.add('open');
+    if (chevron) chevron.style.transform = 'rotate(180deg)';
+  }
+}
+function switchTab(pid, tab) {
+  ['notes','exercises','review'].forEach(t => {
+    const btn = document.getElementById(`tab-${t}-${pid}`);
+    if (btn) btn.classList.toggle('active', t === tab);
+  });
+  const area = document.getElementById('tab-content-' + pid);
+  if (!area) return;
+  if (tab === 'notes') area.innerHTML = renderNotesTab(pid);
+  else if (tab === 'exercises') area.innerHTML = renderExercisesTab(pid);
+  else if (tab === 'review') area.innerHTML = renderReviewTab(pid);
+}
+function saveNotes(pid) {
+  const ta = document.getElementById('notes-ta-' + pid);
+  if (!ta) return;
+  setNotes(pid, ta.value);
+  showToast('✓ تم حفظ الملاحظات');
+}
+function addExercise(pid) {
+  const input = document.getElementById('ex-input-' + pid);
+  if (!input || !input.value.trim()) return;
+  const exs = getExercises(pid);
+  exs.push({ text: input.value.trim(), done: false });
+  setExercises(pid, exs);
+  switchTab(pid, 'exercises');
+  showToast('✓ تمت إضافة التمرين');
+}
+function toggleExercise(pid, idx) {
+  const exs = getExercises(pid);
+  if (!exs[idx]) return;
+  exs[idx].done = !exs[idx].done;
+  setExercises(pid, exs);
+  switchTab(pid, 'exercises');
+}
+function deleteExercise(pid, idx) {
+  const exs = getExercises(pid);
+  exs.splice(idx, 1);
+  setExercises(pid, exs);
+  switchTab(pid, 'exercises');
+}
+function addReview(pid) {
+  const rc = getReviewCount(pid);
+  setPartialProgress(pid, { reviewCount: rc + 1 });
+  switchTab(pid, 'review');
+  showToast('✓ تمت إضافة مراجعة');
+}
+// ── toggleComplete مع إضافة completedAt ──
+function toggleComplete(pid) {
+  const done = isCompleted(pid);
+  const now = new Date().toISOString();
+  setPartialProgress(pid, {
+    completed: !done,
+    completedAt: !done ? now : undefined
+  });
+  const card = document.getElementById('pc-' + pid);
+  const chk = document.getElementById('chk-' + pid);
+  const cbtn = document.getElementById('cbtn-' + pid);
+  if (card) card.classList.toggle('completed', !done);
+  if (chk) {
+    chk.className = 'partial-check ' + (!done ? 'done' : '');
+    chk.innerHTML = !done ? '<i class="ri-check-line"></i>' : '';
+  }
+  if (cbtn) {
+    cbtn.className = 'complete-btn ' + (!done ? 'done' : 'undone');
+    cbtn.innerHTML = !done
+      ? '<i class="ri-checkbox-circle-fill"></i> إلغاء الإكمال'
+      : '<i class="ri-checkbox-circle-line"></i> تحديد كمكتملة';
+  }
+  showToast(!done ? '✓ تم تحديدها كمكتملة' : '✓ تم إلغاء الإكمال');
+  const act = LS.get(KEY_ACTIVITY, {});
+  const today = todayKey();
+  act[today] = (act[today] || 0) + 2;
+  LS.set(KEY_ACTIVITY, act);
+}
+
+// ═══════════════════════════════════════════════════════
+//  SCHEDULE PAGE
+// ═══════════════════════════════════════════════════════
+let selectedDay = todayKey();
+function renderSchedule() {
+  const today = new Date();
+  const dayNames = ['أحد','اثنين','ثلاثاء','أربعاء','خميس','جمعة','سبت'];
+  const schedule = LS.get(KEY_SCHEDULE, {});
+
+  const days = [];
+  for (let i = -3; i <= 3; i++) {
+    const d = new Date(today);
+    d.setDate(today.getDate() + i);
+    const key = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+    days.push({ key, dayName: dayNames[d.getDay()], dayNum: d.getDate(), isToday: i === 0, hasSessions: !!(schedule[key] && schedule[key].length) });
+  }
+
+  const allSubjects = STUDY_DATA.flatMap(cat => cat.subjects);
+  const sessions = schedule[selectedDay] || [];
+
+  return `
+  <div class="page-inner">
+    <div class="section-title">الأسبوع الحالي</div>
+    <div class="week-grid" id="week-grid">
+      ${days.map(d => `
+      <div class="day-cell ${d.isToday?'today':''} ${d.key===selectedDay?'active':''} ${d.hasSessions?'has-sessions':''}"
+        onclick="selectDay('${d.key}')">
+        <div class="day-name">${d.dayName}</div>
+        <div class="day-num">${d.dayNum}</div>
+        <div class="day-dot"></div>
+      </div>`).join('')}
+    </div>
+
+    <div class="session-add-card">
+      <div class="session-add-title"><i class="ri-add-circle-line"></i> إضافة جلسة دراسة</div>
+      <div class="session-add-row">
+        <select class="session-select" id="sess-subj">
+          ${allSubjects.map(s => `<option value="${s.id}">${s.title}</option>`).join('')}
+        </select>
+        <input type="time" class="session-time-input" id="sess-time" value="09:00">
+        <input type="number" class="session-duration-input" id="sess-duration" placeholder="ساعة" min="0.5" max="12" step="0.5" value="1" style="width:80px;">
+      </div>
+      <div style="margin-top:8px">
+        <input type="text" class="add-exercise-input" id="sess-note" placeholder="ملاحظة اختيارية..." style="width:100%">
+      </div>
+      <div style="margin-top:8px">
+        <button class="session-add-submit" onclick="addSession()"><i class="ri-add-line"></i> إضافة</button>
+      </div>
+    </div>
+
+    <div class="section-title">جلسات ${selectedDay}</div>
+    <div class="sessions-container" id="sessions-cont">
+      ${renderSessionsList(sessions)}
+    </div>
+  </div>`;
+}
+function renderSessionsList(sessions) {
+  if (!sessions.length) return `
+  <div class="empty-state">
+    <i class="ri-calendar-check-line"></i>
+    <p>لا جلسات مضافة لهذا اليوم</p>
+  </div>`;
+  return sessions.map((s, i) => {
+    const meta = subjMeta(s.subjectId);
+    const subj = STUDY_DATA.flatMap(c=>c.subjects).find(x=>x.id===s.subjectId);
+    const durationText = s.duration ? `${s.duration} ساعة` : '';
+    const completedClass = s.completed ? 'completed' : '';
+    const checkIcon = s.completed ? 'ri-checkbox-circle-fill' : 'ri-checkbox-circle-line';
+    const checkBtnClass = s.completed ? 'done' : '';
+    return `
+    <div class="session-card ${completedClass}" id="session-${i}">
+      <div class="session-time-badge">${s.time}</div>
+      <div class="session-info">
+        <div class="session-subject" style="color:${meta.color}; ${s.completed ? 'text-decoration: line-through; opacity:0.7;' : ''}">${subj ? subj.title : s.subjectId}</div>
+        ${durationText ? `<div class="session-detail">⏱ ${durationText}</div>` : ''}
+        ${s.note ? `<div class="session-detail">${escHtml(s.note)}</div>` : ''}
+      </div>
+      <button class="session-complete-btn ${checkBtnClass}" onclick="toggleSessionComplete(${i})" title="${s.completed ? 'إلغاء الإكمال' : 'تمت المراجعة'}">
+        <i class="ri-lg ${checkIcon}"></i>
+      </button>
+      <button class="session-del" onclick="deleteSession(${i})"><i class="ri-delete-bin-line"></i></button>
+    </div>`;
+  }).join('');
+}
+function selectDay(key) {
+  selectedDay = key;
+  document.getElementById('page-content').innerHTML = renderSchedule();
+}
+function addSession() {
+  const subjEl = document.getElementById('sess-subj');
+  const timeEl = document.getElementById('sess-time');
+  const durationEl = document.getElementById('sess-duration');
+  const noteEl = document.getElementById('sess-note');
+  if (!subjEl || !timeEl) return;
+  const duration = durationEl ? parseFloat(durationEl.value) || 0 : 0;
+  const schedule = LS.get(KEY_SCHEDULE, {});
+  if (!schedule[selectedDay]) schedule[selectedDay] = [];
+  schedule[selectedDay].push({ subjectId: subjEl.value, time: timeEl.value, duration, note: noteEl ? noteEl.value : '', completed: false });
+  schedule[selectedDay].sort((a,b) => a.time.localeCompare(b.time));
+  LS.set(KEY_SCHEDULE, schedule);
+  document.getElementById('page-content').innerHTML = renderSchedule();
+  showToast('✓ تمت إضافة الجلسة');
+}
+function toggleSessionComplete(idx) {
+  const schedule = LS.get(KEY_SCHEDULE, {});
+  if (!schedule[selectedDay] || !schedule[selectedDay][idx]) return;
+  schedule[selectedDay][idx].completed = !schedule[selectedDay][idx].completed;
+  LS.set(KEY_SCHEDULE, schedule);
+  document.getElementById('page-content').innerHTML = renderSchedule();
+}
+function deleteSession(idx) {
+  const schedule = LS.get(KEY_SCHEDULE, {});
+  if (schedule[selectedDay]) {
+    schedule[selectedDay].splice(idx, 1);
+    LS.set(KEY_SCHEDULE, schedule);
+    document.getElementById('page-content').innerHTML = renderSchedule();
+  }
+}
+
+// ═══════════════════════════════════════════════════════
+//  STATS PAGE
+// ═══════════════════════════════════════════════════════
+function renderStats() {
+  const overall = calcOverallProgress();
+
+  const allSubjects = STUDY_DATA.flatMap(cat => cat.subjects);
+
+  const today = new Date();
+  const activity = LS.get(KEY_ACTIVITY, {});
+  const heatCells = [];
+  for (let i = 90; i >= 0; i--) {
+    const d = new Date(today);
+    d.setDate(today.getDate() - i);
+    const key = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+    const min = activity[key] || 0;
+    const lvl = min === 0 ? 0 : min < 30 ? 1 : min < 60 ? 2 : min < 120 ? 3 : 4;
+    heatCells.push(`<div class="heat-cell" data-lvl="${lvl}" title="${key}: ${Math.round(min)}د"></div>`);
+  }
+
+  return `
+  <div class="page-inner">
+    <div class="stats-hero-row">
+      <div class="stats-mini">
+        <div class="stats-mini-val text-accent">${overall.pct}%</div>
+        <div class="stats-mini-lbl">الإنجاز العام</div>
+      </div>
+      <div class="stats-mini">
+        <div class="stats-mini-val text-green">${overall.done}</div>
+        <div class="stats-mini-lbl">فقرات مكتملة</div>
+      </div>
+    </div>
+
+    <div class="section-title">تقدم المواد</div>
+    <div class="subjects-progress">
+      ${allSubjects.map(subj => {
+        const pct = calcSubjectProgress(subj.id);
+        const meta = subjMeta(subj.id);
+        const allP = subj.units.reduce((s,u)=>s+u.lessons.reduce((s2,l)=>s2+l.branches.reduce((s3,b)=>s3+b.partials.length,0),0),0);
+        const doneP = subj.units.reduce((s,u)=>s+u.lessons.reduce((s2,l)=>s2+l.branches.reduce((s3,b)=>s3+b.partials.filter(p=>isCompleted(p.id)).length,0),0),0);
+        return `
+        <div class="subj-progress-item">
+          <div class="subj-progress-top">
+            <span class="subj-progress-name">
+              <i class="${meta.icon}" style="color:${meta.color};margin-left:6px"></i>
+              ${escHtml(subj.title)}
+            </span>
+            <span class="subj-progress-pct">${pct}%</span>
+          </div>
+          <div class="progress-bar-wrap" style="height:8px;border-radius:4px">
+            <div class="progress-bar-fill" style="width:${pct}%;background:${meta.color};border-radius:4px"></div>
+          </div>
+          <div style="font-size:11px;color:var(--text3);margin-top:4px">${doneP}/${allP} فقرة</div>
+        </div>`;
+      }).join('')}
+    </div>
+
+    <div class="section-title">نشاط 91 يوماً الماضية</div>
+    <div class="heatmap-grid">${heatCells.join('')}</div>
+    <div class="heatmap-legend">
+      <span>أقل</span>
+      <div class="heatmap-legend-cell" style="background:var(--bg3)"></div>
+      <div class="heatmap-legend-cell" data-lvl="1" style="background:rgba(108,99,255,0.25)"></div>
+      <div class="heatmap-legend-cell" data-lvl="2" style="background:rgba(108,99,255,0.5)"></div>
+      <div class="heatmap-legend-cell" data-lvl="3" style="background:rgba(108,99,255,0.75)"></div>
+      <div class="heatmap-legend-cell" data-lvl="4" style="background:var(--accent)"></div>
+      <span>أكثر</span>
+    </div>
+
+    <div class="divider"></div>
+    <div class="section-title">ملخص الإنجاز</div>
+    <div style="background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius-sm);padding:14px">
+      <div style="display:flex;justify-content:space-between;margin-bottom:8px;font-size:14px">
+        <span>الفقرات المكتملة</span><strong>${overall.done} / ${overall.total}</strong>
+      </div>
+      <div style="display:flex;justify-content:space-between;font-size:14px">
+        <span>إجمالي المراجعات</span><strong>${totalReviews()}</strong>
+      </div>
+    </div>
+
+    <div style="margin-top:16px;text-align:center">
+      <button onclick="clearAllData()" style="background:var(--red-light);color:var(--red);border:1px solid var(--red);border-radius:var(--radius-sm);padding:10px 20px;font-family:inherit;font-size:13px;cursor:pointer;font-weight:600">
+        <i class="ri-delete-bin-2-line"></i> إعادة تعيين كل البيانات
+      </button>
+    </div>
+  </div>`;
+}
+function clearAllData() {
+  if (confirm('هل أنت متأكد؟ سيتم حذف كل تقدمك وملاحظاتك!')) {
+    [KEY_PROGRESS, KEY_NOTES, KEY_EXERCISES, KEY_ACTIVITY, KEY_TIMER, KEY_SCHEDULE].forEach(k => localStorage.removeItem(k));
+    showToast('تم إعادة تعيين جميع البيانات');
+    nav('home');
+  }
+}
+
+// ═══════════════════════════════════════════════════════
+//  MODAL FOR WEEKLY GOAL
+// ═══════════════════════════════════════════════════════
+function openGoalModal() {
+  const modal = document.getElementById('goal-modal');
+  const body = document.getElementById('goal-modal-body');
+  const existingGoal = getWeeklyGoal();
+  const selectedIds = existingGoal ? existingGoal.partials : [];
+  body.innerHTML = renderGoalModalContent(selectedIds);
+  modal.classList.add('open');
+}
+function closeGoalModal() {
+  document.getElementById('goal-modal').classList.remove('open');
+}
+function toggleGoalBranch(el) {
+  const container = el.nextElementSibling;
+  if (container) {
+    container.style.display = container.style.display === 'block' ? 'none' : 'block';
+  }
+}
+function renderGoalModalContent(selectedIds) {
+  const allBranches = getAllBranches();
+  const subjectsMap = new Map();
+  allBranches.forEach(branch => {
+    if (!subjectsMap.has(branch.subjectId)) {
+      subjectsMap.set(branch.subjectId, { subject: STUDY_DATA.flatMap(c=>c.subjects).find(s=>s.id===branch.subjectId), branches: [] });
+    }
+    subjectsMap.get(branch.subjectId).branches.push(branch);
+  });
+
+  let html = '';
+  subjectsMap.forEach((val, subjId) => {
+    const subj = val.subject;
+    if (!subj) return;
+    const meta = subjMeta(subjId);
+    html += `
+    <div style="margin-bottom:12px">
+      <div style="display:flex; align-items:center; gap:8px; margin-bottom:6px; font-weight:600; color:var(--text)">
+        <i class="${meta.icon}" style="color:${meta.color}; font-size:18px"></i>
+        ${escHtml(subj.title)}
+      </div>`;
+    val.branches.forEach(branch => {
+      html += `
+      <div class="modal-branch-item" onclick="toggleGoalBranch(this)">
+        <i class="ri-arrow-left-s-line" style="margin-left:6px; font-size:14px"></i>
+        ${escHtml(branch.title)} (${branch.partials.length})
+      </div>
+      <div class="goal-branch-partials" style="display:none; margin-right:20px;">
+        ${branch.partials.map(p => `
+          <label class="modal-partial-item">
+            <input type="checkbox" value="${p.id}" ${selectedIds.includes(p.id) ? 'checked' : ''}> ${escHtml(p.title)}
+          </label>
+        `).join('')}
+      </div>`;
+    });
+    html += `</div>`;
+  });
+  return html || '<p style="text-align:center;color:var(--text3)">لا توجد مواد</p>';
+}
+function saveWeeklyGoalFromModal() {
+  const checkboxes = document.querySelectorAll('#goal-modal-body input[type="checkbox"]:checked');
+  const ids = Array.from(checkboxes).map(cb => cb.value);
+  if (ids.length === 0) {
+    showToast('⚠️ الرجاء اختيار فقرة واحدة على الأقل');
+    return;
+  }
+  saveWeeklyGoal(ids);
+  closeGoalModal();
+  document.getElementById('page-content').innerHTML = renderHome();
+  showToast('✓ تم حفظ الهدف الأسبوعي');
+}
+
+// ═══════════════════════════════════════════════════════
+//  UTILS
+// ═══════════════════════════════════════════════════════
+function escHtml(str) {
+  return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
 
 // ═══════════════════════════════════════════════════════
 //  INIT (مع تنظيف الهدف الأسبوعي القديم)
