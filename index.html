@@ -887,6 +887,119 @@ body {
 .mt16 { margin-top: 16px; }
 /* scrollbar */
 ::-webkit-scrollbar { width: 0; }
+
+/* ── MODAL ── */
+.modal-overlay {
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: rgba(0,0,0,0.6);
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  opacity: 0;
+  visibility: hidden;
+  transition: all 0.2s;
+}
+.modal-overlay.open {
+  opacity: 1;
+  visibility: visible;
+}
+.modal-card {
+  background: var(--bg2);
+  border-radius: var(--radius);
+  width: 100%;
+  max-width: 500px;
+  max-height: 80vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  box-shadow: 0 12px 40px rgba(0,0,0,0.5);
+}
+.modal-header {
+  padding: 16px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.modal-title { flex: 1; font-weight: 700; font-size: 17px; }
+.modal-close {
+  background: none; border: none; color: var(--text2); font-size: 24px; cursor: pointer;
+}
+.modal-body {
+  flex: 1; overflow-y: auto; padding: 12px 16px;
+}
+.modal-footer {
+  padding: 12px 16px; border-top: 1px solid var(--border);
+  display: flex; justify-content: flex-end; gap: 8px;
+}
+
+/* ── GOAL CARD ── */
+.goal-empty-card {
+  background: var(--bg2);
+  border: 1px dashed var(--accent);
+  border-radius: var(--radius);
+  padding: 20px;
+  text-align: center;
+  margin-bottom: 16px;
+}
+.goal-progress-card {
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 20px;
+  margin-bottom: 16px;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+.goal-circle-wrap {
+  position: relative;
+  width: 70px;
+  height: 70px;
+  flex-shrink: 0;
+}
+.goal-circle-text {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 14px;
+}
+.goal-circle-sub {
+  font-size: 9px;
+  color: var(--text3);
+}
+.goal-info {
+  flex: 1;
+}
+.goal-title {
+  font-size: 16px;
+  font-weight: 700;
+  margin-bottom: 4px;
+}
+.goal-desc {
+  font-size: 13px;
+  color: var(--text3);
+}
+.modal-branch-item {
+  display: flex;
+  align-items: center;
+  padding: 6px 0;
+  cursor: pointer;
+}
+.modal-partial-item {
+  display: flex;
+  align-items: center;
+  padding: 4px 0 4px 24px;
+  font-size: 13px;
+  color: var(--text2);
+}
 </style>
 </head>
 <body>
@@ -916,6 +1029,22 @@ body {
     </button>
   </nav>
 </div>
+
+<!-- نافذة الهدف الأسبوعي -->
+<div id="goal-modal" class="modal-overlay">
+  <div class="modal-card">
+    <div class="modal-header">
+      <div class="modal-title">تحديد الهدف الأسبوعي</div>
+      <button class="modal-close" onclick="closeGoalModal()"><i class="ri-close-line"></i></button>
+    </div>
+    <div class="modal-body" id="goal-modal-body"></div>
+    <div class="modal-footer">
+      <button class="save-notes-btn" onclick="saveWeeklyGoalFromModal()" style="background:var(--accent);color:#fff">حفظ الهدف</button>
+      <button class="save-notes-btn" onclick="closeGoalModal()" style="background:var(--bg3);color:var(--text)">إلغاء</button>
+    </div>
+  </div>
+</div>
+
 <div id="toast"></div>
 
 <script src="data.js"></script>
@@ -930,13 +1059,14 @@ const LS = {
   set: (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} }
 };
 
-const KEY_PROGRESS  = 'sp_progress';
-const KEY_NOTES     = 'sp_notes';
-const KEY_EXERCISES = 'sp_exercises';
-const KEY_ACTIVITY  = 'sp_activity';
-const KEY_TIMER     = 'sp_timer';
-const KEY_SCHEDULE  = 'sp_schedule';
-const KEY_THEME     = 'sp_theme';
+const KEY_PROGRESS   = 'sp_progress';
+const KEY_NOTES      = 'sp_notes';
+const KEY_EXERCISES  = 'sp_exercises';
+const KEY_ACTIVITY   = 'sp_activity';
+const KEY_TIMER      = 'sp_timer';
+const KEY_SCHEDULE   = 'sp_schedule';
+const KEY_THEME      = 'sp_theme';
+const KEY_WEEKLY_GOAL = 'sp_weekly_goal';  // مفتاح الهدف الأسبوعي
 
 // ═══════════════════════════════════════════════════════
 //  THEME
@@ -985,7 +1115,11 @@ function getBranchPartials(branchId) { return getAllPartials().filter(p => p.bra
 function getProgress() { return LS.get(KEY_PROGRESS, {}); }
 function setPartialProgress(pid, data) {
   const p = getProgress();
-  p[pid] = { ...(p[pid] || {}), ...data };
+  const existing = p[pid] || {};
+  const merged = { ...existing, ...data };
+  // إزالة الخصائص ذات القيم غير المعرفة (undefined)
+  Object.keys(merged).forEach(key => merged[key] === undefined && delete merged[key]);
+  p[pid] = merged;
   LS.set(KEY_PROGRESS, p);
 }
 function isCompleted(pid) { return !!(getProgress()[pid] || {}).completed; }
@@ -1044,6 +1178,57 @@ const SUBJ_META = {
   'subj-history-geo':  { icon: 'ri-map-2-line',        color: '#84cc16', bg: 'rgba(132,204,22,0.12)' },
 };
 function subjMeta(id) { return SUBJ_META[id] || { icon: 'ri-book-line', color: '#6c63ff', bg: 'rgba(108,99,255,0.15)' }; }
+
+// ═══════════════════════════════════════════════════════
+//  WEEKLY GOAL HELPERS
+// ═══════════════════════════════════════════════════════
+function getCurrentWeekMonday() {
+  const now = new Date();
+  const day = now.getDay(); // 0 = Sunday, 1 = Monday, ...
+  const diff = day === 0 ? -6 : 1 - day; // Monday = 1, so diff to Monday
+  const monday = new Date(now);
+  monday.setDate(now.getDate() + diff);
+  monday.setHours(0, 0, 0, 0);
+  return monday;
+}
+function getWeekKey() {
+  const m = getCurrentWeekMonday();
+  return `${m.getFullYear()}-${String(m.getMonth()+1).padStart(2,'0')}-${String(m.getDate()).padStart(2,'0')}`;
+}
+function getCurrentWeekRange() {
+  const start = getCurrentWeekMonday();
+  const end = new Date(start);
+  end.setDate(end.getDate() + 7); // Monday of next week
+  return { start, end };
+}
+function getWeeklyGoal() {
+  const goal = LS.get(KEY_WEEKLY_GOAL, null);
+  if (goal && goal.weekMonday && goal.weekMonday === getWeekKey()) {
+    return goal;
+  }
+  // إذا كان الهدف من أسبوع سابق نحذفه
+  if (goal) LS.set(KEY_WEEKLY_GOAL, null);
+  return null;
+}
+function saveWeeklyGoal(partialIds) {
+  LS.set(KEY_WEEKLY_GOAL, { weekMonday: getWeekKey(), partials: partialIds });
+}
+function clearWeeklyGoal() {
+  LS.set(KEY_WEEKLY_GOAL, null);
+}
+function calcGoalProgress(goal) {
+  const { partials } = goal;
+  const { start, end } = getCurrentWeekRange();
+  let done = 0;
+  partials.forEach(pid => {
+    const p = getProgress()[pid];
+    if (p && p.completed && p.completedAt) {
+      const compDate = new Date(p.completedAt);
+      if (compDate >= start && compDate < end) done++;
+    }
+  });
+  return { done, total: partials.length, pct: partials.length ? Math.round((done / partials.length) * 100) : 0 };
+}
 
 // ═══════════════════════════════════════════════════════
 //  ROUTER
@@ -1112,28 +1297,58 @@ function renderPage(page) {
 }
 
 // ═══════════════════════════════════════════════════════
-//  HOME PAGE (تم إصلاح قسم "آخر ما درسته")
+//  HOME PAGE (مع بطاقة الهدف الأسبوعي)
 // ═══════════════════════════════════════════════════════
 function renderHome() {
   const overall = calcOverallProgress();
   const r = 35, c = 2 * Math.PI * r;
   const offset = c - (overall.pct / 100) * c;
 
-  // ── إصلاح: الحصول على الفروع التي تمت دراستها بناءً على progress ──
   const prog = getProgress();
   const studiedBranchIds = new Set();
-  // نجمع كل الجزئيات التي لها تقدم (مكتملة أو مراجعة) ونضيف branchId الخاص بها
   getAllPartials().forEach(p => {
     if (prog[p.id] && (prog[p.id].completed || prog[p.id].reviewCount > 0)) {
       studiedBranchIds.add(p.branchId);
     }
   });
-  // نحصل على كائنات الفروع التي تمت دراستها
   const allBranches = getAllBranches();
   const studiedBranches = allBranches.filter(b => studiedBranchIds.has(b.id)).slice(0, 5);
-  // ─────────────────────────────────────────────────
-
   const totalLessons = allBranches.length;
+
+  // الهدف الأسبوعي
+  const weeklyGoal = getWeeklyGoal();
+  let goalCard = '';
+  if (weeklyGoal && weeklyGoal.partials.length) {
+    const gp = calcGoalProgress(weeklyGoal);
+    const gr = 30, gc = 2 * Math.PI * gr;
+    const goffset = gc - (gp.pct / 100) * gc;
+    goalCard = `
+    <div class="goal-progress-card">
+      <div class="goal-circle-wrap">
+        <svg width="70" height="70" viewBox="0 0 70 70">
+          <circle cx="35" cy="35" r="${gr}" fill="none" stroke="var(--bg3)" stroke-width="6"/>
+          <circle cx="35" cy="35" r="${gr}" fill="none" stroke="var(--accent)" stroke-width="6" stroke-linecap="round"
+            stroke-dasharray="${gc}" stroke-dashoffset="${goffset}" transform="rotate(-90 35 35)" style="transition: stroke-dashoffset 0.6s ease"/>
+        </svg>
+        <div class="goal-circle-text">
+          <span>${gp.pct}%</span>
+          <span class="goal-circle-sub">الهدف</span>
+        </div>
+      </div>
+      <div class="goal-info">
+        <div class="goal-title">الهدف الأسبوعي</div>
+        <div class="goal-desc">${gp.done} من ${gp.total} فقرة مكتملة هذا الأسبوع</div>
+        <button class="save-notes-btn" style="margin-top:8px; background:var(--bg3); color:var(--text);" onclick="openGoalModal()">تعديل الهدف</button>
+      </div>
+    </div>`;
+  } else {
+    goalCard = `
+    <div class="goal-empty-card">
+      <div style="color:var(--text2); margin-bottom:12px; font-size:15px; font-weight:600">🎯 الهدف الأسبوعي</div>
+      <p style="font-size:13px; color:var(--text3); margin-bottom:16px;">حدد أهدافك لهذا الأسبوع لتحفيز الإنجاز</p>
+      <button class="save-notes-btn" onclick="openGoalModal()"><i class="ri-add-line"></i> تحديد هدف</button>
+    </div>`;
+  }
 
   return `
   <div class="page-inner">
@@ -1158,6 +1373,8 @@ function renderHome() {
         </div>
       </div>
     </div>
+
+    ${goalCard}
 
     <div class="stats-row">
       <div class="stat-card">
@@ -1559,9 +1776,14 @@ function addReview(pid) {
   switchTab(pid, 'review');
   showToast('✓ تمت إضافة مراجعة');
 }
+// ── toggleComplete مع إضافة completedAt ──
 function toggleComplete(pid) {
   const done = isCompleted(pid);
-  setPartialProgress(pid, { completed: !done });
+  const now = new Date().toISOString();
+  setPartialProgress(pid, {
+    completed: !done,
+    completedAt: !done ? now : undefined
+  });
   const card = document.getElementById('pc-' + pid);
   const chk = document.getElementById('chk-' + pid);
   const cbtn = document.getElementById('cbtn-' + pid);
@@ -1798,6 +2020,78 @@ function clearAllData() {
 }
 
 // ═══════════════════════════════════════════════════════
+//  MODAL FOR WEEKLY GOAL
+// ═══════════════════════════════════════════════════════
+function openGoalModal() {
+  const modal = document.getElementById('goal-modal');
+  const body = document.getElementById('goal-modal-body');
+  const existingGoal = getWeeklyGoal();
+  const selectedIds = existingGoal ? existingGoal.partials : [];
+  body.innerHTML = renderGoalModalContent(selectedIds);
+  modal.classList.add('open');
+}
+function closeGoalModal() {
+  document.getElementById('goal-modal').classList.remove('open');
+}
+function toggleGoalBranch(el) {
+  const container = el.nextElementSibling;
+  if (container) {
+    container.style.display = container.style.display === 'block' ? 'none' : 'block';
+  }
+}
+function renderGoalModalContent(selectedIds) {
+  const allBranches = getAllBranches();
+  const subjectsMap = new Map();
+  allBranches.forEach(branch => {
+    if (!subjectsMap.has(branch.subjectId)) {
+      subjectsMap.set(branch.subjectId, { subject: STUDY_DATA.flatMap(c=>c.subjects).find(s=>s.id===branch.subjectId), branches: [] });
+    }
+    subjectsMap.get(branch.subjectId).branches.push(branch);
+  });
+
+  let html = '';
+  subjectsMap.forEach((val, subjId) => {
+    const subj = val.subject;
+    if (!subj) return;
+    const meta = subjMeta(subjId);
+    html += `
+    <div style="margin-bottom:12px">
+      <div style="display:flex; align-items:center; gap:8px; margin-bottom:6px; font-weight:600; color:var(--text)">
+        <i class="${meta.icon}" style="color:${meta.color}; font-size:18px"></i>
+        ${escHtml(subj.title)}
+      </div>`;
+    val.branches.forEach(branch => {
+      html += `
+      <div class="modal-branch-item" onclick="toggleGoalBranch(this)">
+        <i class="ri-arrow-left-s-line" style="margin-left:6px; font-size:14px"></i>
+        ${escHtml(branch.title)} (${branch.partials.length})
+      </div>
+      <div class="goal-branch-partials" style="display:none; margin-right:20px;">
+        ${branch.partials.map(p => `
+          <label class="modal-partial-item">
+            <input type="checkbox" value="${p.id}" ${selectedIds.includes(p.id) ? 'checked' : ''}> ${escHtml(p.title)}
+          </label>
+        `).join('')}
+      </div>`;
+    });
+    html += `</div>`;
+  });
+  return html || '<p style="text-align:center;color:var(--text3)">لا توجد مواد</p>';
+}
+function saveWeeklyGoalFromModal() {
+  const checkboxes = document.querySelectorAll('#goal-modal-body input[type="checkbox"]:checked');
+  const ids = Array.from(checkboxes).map(cb => cb.value);
+  if (ids.length === 0) {
+    showToast('⚠️ الرجاء اختيار فقرة واحدة على الأقل');
+    return;
+  }
+  saveWeeklyGoal(ids);
+  closeGoalModal();
+  document.getElementById('page-content').innerHTML = renderHome();
+  showToast('✓ تم حفظ الهدف الأسبوعي');
+}
+
+// ═══════════════════════════════════════════════════════
 //  UTILS
 // ═══════════════════════════════════════════════════════
 function escHtml(str) {
@@ -1805,8 +2099,15 @@ function escHtml(str) {
 }
 
 // ═══════════════════════════════════════════════════════
-//  INIT
+//  INIT (مع تنظيف الهدف الأسبوعي القديم)
 // ═══════════════════════════════════════════════════════
+(function initGoalClear() {
+  const goal = LS.get(KEY_WEEKLY_GOAL, null);
+  if (goal && goal.weekMonday && goal.weekMonday !== getWeekKey()) {
+    LS.set(KEY_WEEKLY_GOAL, null);
+  }
+})();
+
 nav('home', false);
 </script>
 </body>
