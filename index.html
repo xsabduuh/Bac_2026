@@ -1430,9 +1430,15 @@ function clearWeeklyGoal() {
 }
 function calcGoalProgress(goal) {
   const { partials } = goal;
+  const start = new Date(goal.startDate);
+  const end = new Date(goal.endDate);
   let done = 0;
   partials.forEach(pid => {
-    if (isCompleted(pid)) done++;
+    const p = getProgress()[pid];
+    if (p && p.completed && p.completedAt) {
+      const compDate = new Date(p.completedAt);
+      if (compDate >= start && compDate < end) done++;
+    }
   });
   return { done, total: partials.length, pct: partials.length ? Math.round((done / partials.length) * 100) : 0 };
 }
@@ -1509,7 +1515,7 @@ function renderPage(page) {
 }
 
 // ═══════════════════════════════════════════════════════
-//  HOME PAGE (بدون إيموجي)
+//  HOME PAGE
 // ═══════════════════════════════════════════════════════
 function renderHome() {
   const overall = calcOverallProgress();
@@ -2249,7 +2255,7 @@ function openGoalModal() {
   const input = document.getElementById('goal-search-input');
   if (input) {
     input.value = goalModalSearchQuery;
-    setTimeout(() => input.focus(), 50); // للحفاظ على التركيز على الجوال
+    setTimeout(() => input.focus(), 50);
   }
   const existingGoal = getWeeklyGoal();
   const selectedIds = existingGoal ? existingGoal.partials : [];
@@ -2282,7 +2288,6 @@ function renderGoalResults(selectedIds) {
   const q = goalModalSearchQuery.toLowerCase().trim();
   const allBranches = getAllBranches();
   
-  // إذا كان هناك بحث، نعرض الفقرات المطابقة مباشرة
   if (q) {
     const allPartials = getAllPartials();
     const matchingPartials = allPartials.filter(p => p.title.toLowerCase().includes(q));
@@ -2307,7 +2312,6 @@ function renderGoalResults(selectedIds) {
     }
   }
 
-  // عرض كامل بالأكورديون
   const subjectsMap = new Map();
   allBranches.forEach(branch => {
     if (!subjectsMap.has(branch.subjectId)) {
@@ -2510,7 +2514,7 @@ function escHtml(str) {
 }
 
 // ═══════════════════════════════════════════════════════
-//  INIT (تنظيف الهدف القديم)
+//  INIT
 // ═══════════════════════════════════════════════════════
 (function initGoalClear() {
   const goal = LS.get(KEY_WEEKLY_GOAL, null);
