@@ -1690,14 +1690,34 @@ function updateSubjectsResults() {
 }
 
 function renderSearchResults(q) {
-  const branches = getAllBranches();
-  const matchingBranches = branches.filter(b => b.title.toLowerCase().includes(q));
+  const allPartials = getAllPartials();
+  const allBranches = getAllBranches();
+  const matchedBranchIds = new Set();
 
-  if (matchingBranches.length === 0) {
+  // البحث في جميع المستويات: مادة، وحدة، درس، فرع، فقرة
+  allBranches.forEach(branch => {
+    if (branch.title.toLowerCase().includes(q) ||
+        branch.lessonTitle.toLowerCase().includes(q) ||
+        branch.unitTitle.toLowerCase().includes(q) ||
+        branch.subjectTitle.toLowerCase().includes(q) ||
+        branch.catTitle.toLowerCase().includes(q)) {
+      matchedBranchIds.add(branch.id);
+    }
+  });
+
+  allPartials.forEach(partial => {
+    if (partial.title.toLowerCase().includes(q)) {
+      matchedBranchIds.add(partial.branchId);
+    }
+  });
+
+  const branches = allBranches.filter(b => matchedBranchIds.has(b.id));
+
+  if (branches.length === 0) {
     return '<div class="empty-state"><i class="ri-search-line"></i><p>لا توجد نتائج</p></div>';
   }
 
-  return matchingBranches.map(branch => {
+  return branches.map(branch => {
     const meta = subjMeta(branch.subjectId);
     const doneCount = branch.partials.filter(p => isCompleted(p.id)).length;
     return `
