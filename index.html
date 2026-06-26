@@ -935,7 +935,7 @@ body {
   display: flex; justify-content: flex-end; gap: 8px;
 }
 
-/* ── GOAL CARD (أجمل) ── */
+/* ── GOAL CARD (بدون إيموجي) ── */
 .goal-empty-card {
   background: var(--bg2);
   border: 2px dashed var(--accent);
@@ -944,7 +944,7 @@ body {
   text-align: center;
   margin-bottom: 16px;
 }
-.goal-empty-card .goal-emoji { font-size: 36px; margin-bottom: 8px; }
+.goal-empty-card .goal-icon { font-size: 36px; color: var(--accent); margin-bottom: 8px; }
 .goal-progress-card {
   background: linear-gradient(135deg, rgba(108,99,255,0.08) 0%, rgba(156,92,245,0.08) 100%);
   border: 1px solid var(--accent-light);
@@ -1044,6 +1044,19 @@ body {
 .checklist-item-sub {
   font-size: 12px;
   color: var(--text3);
+}
+.checklist-delete {
+  background: none;
+  border: none;
+  color: var(--text3);
+  font-size: 18px;
+  cursor: pointer;
+  padding: 4px;
+  transition: color 0.15s;
+}
+.checklist-delete:active {
+  color: var(--red);
+  transform: scale(0.9);
 }
 
 /* ── GOAL MODAL IMPROVED ── */
@@ -1168,6 +1181,19 @@ body {
   color: var(--text2);
   flex: 1;
 }
+.modal-partial-delete {
+  background: none;
+  border: none;
+  color: var(--text3);
+  font-size: 16px;
+  cursor: pointer;
+  padding: 2px;
+  transition: color 0.15s;
+}
+.modal-partial-delete:active {
+  color: var(--red);
+  transform: scale(0.9);
+}
 </style>
 </head>
 <body>
@@ -1206,7 +1232,7 @@ body {
       <button class="modal-close" onclick="closeGoalModal()"><i class="ri-close-line"></i></button>
     </div>
     <div class="modal-body" id="goal-modal-body">
-      <!-- يملأ بالجافاسكريبت -->
+      <!-- يتم تعبئته ديناميكياً -->
     </div>
     <div class="modal-footer">
       <button class="save-notes-btn" onclick="saveWeeklyGoalFromModal()" style="background:var(--accent);color:#fff">حفظ الهدف</button>
@@ -1409,6 +1435,19 @@ function saveWeeklyGoal(partialIds) {
     partials: partialIds
   });
 }
+function removePartialFromGoal(pid) {
+  const goal = getWeeklyGoal();
+  if (!goal) return;
+  const index = goal.partials.indexOf(pid);
+  if (index > -1) {
+    goal.partials.splice(index, 1);
+    if (goal.partials.length === 0) {
+      clearWeeklyGoal();
+    } else {
+      LS.set(KEY_WEEKLY_GOAL, goal);
+    }
+  }
+}
 function clearWeeklyGoal() {
   LS.set(KEY_WEEKLY_GOAL, null);
 }
@@ -1494,7 +1533,7 @@ function renderPage(page) {
 }
 
 // ═══════════════════════════════════════════════════════
-//  HOME PAGE (مع بطاقة الهدف الأسبوعي)
+//  HOME PAGE (بدون إيموجي)
 // ═══════════════════════════════════════════════════════
 function renderHome() {
   const overall = calcOverallProgress();
@@ -1538,7 +1577,7 @@ function renderHome() {
         </div>
       </div>
       <div class="goal-info">
-        <div class="goal-title">${allDone ? '🎉 اكتمل الهدف!' : 'الهدف الأسبوعي'}</div>
+        <div class="goal-title">${allDone ? '<i class="ri-award-line" style="color:var(--green);margin-left:4px"></i> اكتمل الهدف!' : 'الهدف الأسبوعي'}</div>
         <div class="goal-desc">${gp.done} من ${gp.total} فقرة مكتملة ${dateRange}</div>
         <div class="goal-actions">
           <button onclick="openChecklistModal()"><i class="ri-check-double-line"></i> عرض المهام</button>
@@ -1549,7 +1588,7 @@ function renderHome() {
   } else {
     goalCard = `
     <div class="goal-empty-card">
-      <div class="goal-emoji">🎯</div>
+      <div class="goal-icon"><i class="ri-focus-3-line"></i></div>
       <div style="color:var(--text2); margin-bottom:8px; font-size:16px; font-weight:600">الهدف الأسبوعي</div>
       <p style="font-size:13px; color:var(--text3); margin-bottom:16px;">حدد أهدافك لهذا الأسبوع لتحفيز الإنجاز</p>
       <button class="save-notes-btn" onclick="openGoalModal()"><i class="ri-add-line"></i> تحديد هدف</button>
@@ -2227,7 +2266,7 @@ function clearAllData() {
 }
 
 // ═══════════════════════════════════════════════════════
-//  MODAL FOR WEEKLY GOAL (IMPROVED)
+//  MODAL FOR WEEKLY GOAL (إصلاح تركيز البحث + زر حذف)
 // ═══════════════════════════════════════════════════════
 let goalModalSearchQuery = '';
 function openGoalModal() {
@@ -2246,6 +2285,11 @@ function onGoalModalSearch(value) {
   const existingGoal = getWeeklyGoal();
   const selectedIds = existingGoal ? existingGoal.partials : [];
   document.getElementById('goal-modal-body').innerHTML = renderGoalModalContent(selectedIds);
+  // إعادة التركيز على حقل البحث بعد التحديث
+  setTimeout(() => {
+    const input = document.getElementById('goal-search-input');
+    if (input) input.focus();
+  }, 50);
 }
 function toggleGoalSubject(subjectId) {
   const body = document.getElementById(`goal-subject-body-${subjectId}`);
@@ -2263,10 +2307,24 @@ function toggleGoalBranch(branchId) {
     if (chevron) chevron.classList.toggle('open');
   }
 }
+// دالة لإزالة فقرة من الهدف مباشرة من نافذة الاختيار
+function deleteGoalPartialFromModal(pid) {
+  removePartialFromGoal(pid);
+  // تحديث المحتوى مع الحفاظ على البحث
+  const existingGoal = getWeeklyGoal();
+  const selectedIds = existingGoal ? existingGoal.partials : [];
+  document.getElementById('goal-modal-body').innerHTML = renderGoalModalContent(selectedIds);
+  showToast('✓ تم إزالة الفقرة من الهدف');
+  // إعادة التركيز
+  setTimeout(() => {
+    const input = document.getElementById('goal-search-input');
+    if (input) input.focus();
+  }, 50);
+  updateGoalCardDisplay();
+}
 function renderGoalModalContent(selectedIds) {
   const q = goalModalSearchQuery.toLowerCase().trim();
   const allBranches = getAllBranches();
-  // تجميع الفروع حسب المادة
   const subjectsMap = new Map();
   allBranches.forEach(branch => {
     if (!subjectsMap.has(branch.subjectId)) {
@@ -2278,11 +2336,10 @@ function renderGoalModalContent(selectedIds) {
   let html = `<div class="modal-search-bar">
     <div class="search-bar" style="margin-bottom:0">
       <i class="ri-search-line"></i>
-      <input type="search" placeholder="ابحث عن مادة أو فقرة..." value="${escHtml(goalModalSearchQuery)}" oninput="onGoalModalSearch(this.value)" autocomplete="off" />
+      <input type="search" id="goal-search-input" placeholder="ابحث عن مادة أو فقرة..." value="${escHtml(goalModalSearchQuery)}" oninput="onGoalModalSearch(this.value)" autocomplete="off" />
     </div>
   </div>`;
 
-  // إذا كان هناك بحث، نعرض الفقرات المطابقة مباشرة
   if (q) {
     const allPartials = getAllPartials();
     const matchingPartials = allPartials.filter(p => p.title.toLowerCase().includes(q));
@@ -2293,13 +2350,16 @@ function renderGoalModalContent(selectedIds) {
       matchingPartials.forEach(p => {
         const checked = selectedIds.includes(p.id);
         html += `
-        <label class="modal-partial-label" style="padding-right:8px">
-          <div class="modal-partial-checkbox ${checked ? 'checked' : ''}">
-            ${checked ? '<i class="ri-check-line"></i>' : ''}
+        <label class="modal-partial-label" style="padding-right:8px; justify-content:space-between">
+          <div style="display:flex; align-items:center; gap:8px; flex:1">
+            <div class="modal-partial-checkbox ${checked ? 'checked' : ''}">
+              ${checked ? '<i class="ri-check-line"></i>' : ''}
+            </div>
+            <input type="checkbox" value="${p.id}" ${checked ? 'checked' : ''} style="display:none" onchange="this.previousElementSibling.classList.toggle('checked', this.checked); if(this.checked){ this.previousElementSibling.innerHTML='<i class=\\'ri-check-line\\'></i>' } else { this.previousElementSibling.innerHTML='' }">
+            <span class="modal-partial-title">${escHtml(p.title)}</span>
+            <span style="font-size:11px; color:var(--text3)">${p.subjectTitle} · ${p.branchTitle}</span>
           </div>
-          <input type="checkbox" value="${p.id}" ${checked ? 'checked' : ''} style="display:none" onchange="this.previousElementSibling.classList.toggle('checked', this.checked); if(this.checked){ this.previousElementSibling.innerHTML='<i class=\\'ri-check-line\\'></i>' } else { this.previousElementSibling.innerHTML='' }">
-          <span class="modal-partial-title">${escHtml(p.title)}</span>
-          <span style="font-size:11px; color:var(--text3)">${p.subjectTitle} · ${p.branchTitle}</span>
+          ${checked ? `<button class="modal-partial-delete" onclick="event.preventDefault(); deleteGoalPartialFromModal('${p.id}')" title="إزالة من الهدف"><i class="ri-delete-bin-line"></i></button>` : ''}
         </label>`;
       });
       html += '</div>';
@@ -2307,12 +2367,10 @@ function renderGoalModalContent(selectedIds) {
     return html;
   }
 
-  // عرض كامل بالأكورديون
   subjectsMap.forEach((val, subjId) => {
     const subj = val.subject;
     if (!subj) return;
     const meta = subjMeta(subjId);
-    // حساب عدد الفقرات المحددة في هذه المادة
     const allPartialsInSubj = val.branches.flatMap(b => b.partials.map(p => p.id));
     const selectedInSubj = selectedIds.filter(id => allPartialsInSubj.includes(id)).length;
     const totalInSubj = allPartialsInSubj.length;
@@ -2344,12 +2402,15 @@ function renderGoalModalContent(selectedIds) {
               ${branchPartials.map(p => {
                 const checked = selectedIds.includes(p.id);
                 return `
-                <label class="modal-partial-label">
-                  <div class="modal-partial-checkbox ${checked ? 'checked' : ''}">
-                    ${checked ? '<i class="ri-check-line"></i>' : ''}
+                <label class="modal-partial-label" style="justify-content:space-between">
+                  <div style="display:flex; align-items:center; gap:8px; flex:1">
+                    <div class="modal-partial-checkbox ${checked ? 'checked' : ''}">
+                      ${checked ? '<i class="ri-check-line"></i>' : ''}
+                    </div>
+                    <input type="checkbox" value="${p.id}" ${checked ? 'checked' : ''} style="display:none" onchange="this.previousElementSibling.classList.toggle('checked', this.checked); if(this.checked){ this.previousElementSibling.innerHTML='<i class=\\'ri-check-line\\'></i>' } else { this.previousElementSibling.innerHTML='' }">
+                    <span class="modal-partial-title">${escHtml(p.title)}</span>
                   </div>
-                  <input type="checkbox" value="${p.id}" ${checked ? 'checked' : ''} style="display:none" onchange="this.previousElementSibling.classList.toggle('checked', this.checked); if(this.checked){ this.previousElementSibling.innerHTML='<i class=\\'ri-check-line\\'></i>' } else { this.previousElementSibling.innerHTML='' }">
-                  <span class="modal-partial-title">${escHtml(p.title)}</span>
+                  ${checked ? `<button class="modal-partial-delete" onclick="event.preventDefault(); deleteGoalPartialFromModal('${p.id}')" title="إزالة من الهدف"><i class="ri-delete-bin-line"></i></button>` : ''}
                 </label>`;
               }).join('')}
             </div>
@@ -2375,7 +2436,7 @@ function saveWeeklyGoalFromModal() {
 }
 
 // ═══════════════════════════════════════════════════════
-//  CHECKLIST MODAL (قائمة المهام السريعة)
+//  CHECKLIST MODAL (مع زر حذف)
 // ═══════════════════════════════════════════════════════
 function openChecklistModal() {
   const modal = document.getElementById('checklist-modal');
@@ -2403,6 +2464,9 @@ function renderChecklist() {
         </div>
         <div class="checklist-item-title">${escHtml(p.title)}</div>
         <div class="checklist-item-sub">${p.subjectTitle} · ${p.branchTitle}</div>
+        <button class="checklist-delete" onclick="removeChecklistItem('${pid}')" title="إزالة من الهدف">
+          <i class="ri-delete-bin-line"></i>
+        </button>
       </div>`;
     }
   });
@@ -2411,6 +2475,21 @@ function renderChecklist() {
 function toggleChecklistItem(pid) {
   toggleComplete(pid);
   renderChecklist();
+}
+// دالة جديدة لإزالة المهمة من القائمة مباشرة
+function removeChecklistItem(pid) {
+  removePartialFromGoal(pid);
+  const goal = getWeeklyGoal();
+  if (!goal || goal.partials.length === 0) {
+    // الهدف أصبح فارغاً، أغلق النافذة وحدث الصفحة الرئيسية
+    closeChecklistModal();
+    document.getElementById('page-content').innerHTML = renderHome();
+    showToast('✓ تم حذف الهدف لعدم وجود مهام');
+  } else {
+    renderChecklist();
+    updateGoalCardDisplay();
+    showToast('✓ تم إزالة المهمة من الهدف');
+  }
 }
 function updateGoalCardDisplay() {
   const card = document.getElementById('goal-card');
@@ -2435,7 +2514,7 @@ function updateGoalCardDisplay() {
   
   const titleEl = card.querySelector('.goal-title');
   const descEl = card.querySelector('.goal-desc');
-  if (titleEl) titleEl.textContent = allDone ? '🎉 اكتمل الهدف!' : 'الهدف الأسبوعي';
+  if (titleEl) titleEl.innerHTML = allDone ? '<i class="ri-award-line" style="color:var(--green);margin-left:4px"></i> اكتمل الهدف!' : 'الهدف الأسبوعي';
   if (descEl) {
     const startDate = goal.startDate ? formatDate(new Date(goal.startDate)) : '';
     const endDate = goal.endDate ? formatDate(new Date(goal.endDate)) : '';
